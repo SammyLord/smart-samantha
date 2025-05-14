@@ -1,0 +1,3 @@
+Flask>=2.0
+requests>=2.20 
+webdavclient3>=3.14.6 # For Nextcloud server-side integration
