@@ -263,7 +263,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function appendMessage(text, className) {
         const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', className);
+        // Ensure className is treated as potentially multiple classes
+        const classes = className ? className.split(' ').filter(c => c) : [];
+        messageDiv.classList.add('message', ...classes);
         messageDiv.textContent = text;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
