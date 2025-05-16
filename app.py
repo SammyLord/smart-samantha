@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from llm import get_ollama_response
+from llm import get_ollama_response, GENERATOR_MODEL_NAME
 from nlu import process_user_intent
 from integrations import weather, web_search, bible, nextcloud # Import integration modules
 from integrations.autosci import trigger_autosci_discovery # Import the new autosci function
@@ -17,13 +17,12 @@ def chat():
     if not user_message:
         return jsonify({'error': 'No message provided'}), 400
     
-    # Process user message for intent and entities
     nlu_result = process_user_intent(user_message)
     intent = nlu_result.get('intent')
     entities = nlu_result.get('entities', {})
     
-    # Extract Nextcloud credentials if sent by the client
     nextcloud_creds = request.json.get('nextcloud_creds')
+    use_evolution = request.json.get('use_evolution_mode', True) 
     
     ai_response = ""
 
@@ -38,33 +37,31 @@ def chat():
             ai_response = "It looks like you want to interact with Nextcloud, but your credentials aren't set or are incomplete. Please configure them in the settings (⚙️ icon)."
         else:
             ai_response = nextcloud.handle_nextcloud_action(creds=nextcloud_creds, nlu_data=nlu_result)
-    elif intent == "casual_chat":
-        print(f"App.py: Casual chat intent. Engaging multi-step solver for: {user_message}")
-        ai_response = solve_with_multi_step_refinement(user_message)
-    elif intent == "get_ollama_response": # This intent might be redundant
-        print(f"App.py: get_ollama_response intent. Engaging multi-step solver for: {user_message}")
-        ai_response = solve_with_multi_step_refinement(user_message)
     elif intent == "autosci_mode":
         print(f"App.py: AutoSCI mode initiated by user.")
-        # Send an initial response to display loading message, client will make a follow-up request
         return jsonify({
             'action': 'autosci_initiate',
             'response': "Please wait, thinking deeply.... this may take a few days or so! Accessing infinite wisdom engines..."
         })
-    else:
-        # Fallback for unrecognized intents or if something goes wrong with NLU
-        print(f"App.py: Unrecognized NLU intent ('{intent}') or fallback. Engaging multi-step solver for: {user_message}")
-        ai_response = solve_with_multi_step_refinement(user_message)
+    # Default handler for casual chat, get_ollama_response, or any other fallbacks
+    else:  
+        if use_evolution:
+            # Log the specific intent if available, otherwise note it as a fallback/general query
+            log_intent_str = f"intent: '{intent}'" if intent else "fallback/general query"
+            print(f"App.py: {log_intent_str}. Engaging multi-step solver (evolution ON) for: {user_message}")
+            ai_response = solve_with_multi_step_refinement(user_message)
+        else:
+            log_intent_str = f"intent: '{intent}'" if intent else "fallback/general query"
+            print(f"App.py: {log_intent_str}. Using direct generator model (evolution OFF) for: {user_message}")
+            ai_response = get_ollama_response(user_message, model_name=GENERATOR_MODEL_NAME)
 
     return jsonify({'response': ai_response})
 
-@app.route('/execute_autosci', methods=['POST']) # POST to potentially pass params later if needed
+@app.route('/execute_autosci', methods=['POST'])
 def execute_autosci_route():
     """Endpoint dedicated to running the (potentially long) AutoSCI process."""
     print("App.py: /execute_autosci called. Starting AutoSCI discovery...")
-    # No user input is directly used for autosci from this endpoint currently
-    # It uses the hardcoded prompt in trigger_autosci_discovery
-    discovery_result = trigger_autosci_discovery() 
+    discovery_result = trigger_autosci_discovery()
     print("App.py: AutoSCI discovery finished.")
     return jsonify({'response': discovery_result})
 

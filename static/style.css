@@ -201,7 +201,30 @@ button {
 }
 
 .autosci-btn {
-    background-color: #17a2b8; /* A different color, e.g., info blue */
+    background-color: #17a2b8; /* Info color (like Bootstrap) */
+}
+
+.evolution-mode-toggle-container {
+    background-color: #ffc107; /* Warning color (like Bootstrap) */
+    color: #212529; /* Dark color for text on yellow background */
+    display: flex;
+    align-items: center;
+    padding: 10px 15px; /* Match other header buttons */
+    border-radius: 5px; /* Match other header buttons */
+}
+
+.evolution-mode-toggle-container label {
+    margin-right: 8px;
+    font-size: 14px; /* Match header-btn font-size */
+    cursor: pointer;
+}
+
+.evolution-mode-toggle-container input[type="checkbox"] {
+    cursor: pointer;
+    /* Optional: Style checkbox for better appearance */
+    width: 16px;
+    height: 16px;
+    accent-color: #007bff; /* Change checkbox color when checked */
 }
 
 /* Adjust existing .settings-btn if it was absolutely positioned */

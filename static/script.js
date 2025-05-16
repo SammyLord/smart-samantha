@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextcloudUserInput = document.getElementById('nextcloudUser');
     const nextcloudPassInput = document.getElementById('nextcloudPass');
     const autosciButton = document.getElementById('autosciButton');
+    const evolutionModeToggle = document.getElementById('evolutionModeToggle');
 
     // Cookie helper functions
     function setCookie(name, value, days) {
@@ -179,7 +180,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let aiResponsePlaceholder = appendMessage("Samantha is thinking...", 'ai-message system-message');
 
         // Prepare payload for the backend
-        const payload = { message: messageText };
+        const payload = { 
+            message: messageText,
+            use_evolution_mode: evolutionModeToggle ? evolutionModeToggle.checked : true
+        };
 
         // Read Nextcloud creds from cookies and add to payload if they exist
         const ncUrl = getCookie('nextcloudUrl');
