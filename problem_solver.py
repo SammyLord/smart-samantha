@@ -1,9 +1,9 @@
 from llm import get_ollama_response, GENERATOR_MODEL_NAME, THINKER_MODEL_NAME
 import re
 
-DEFAULT_NUM_INITIAL_IDEAS = 5
-DEFAULT_NUM_PROTOTYPES = 5 # Number of prototypes to generate for the selected idea
-MAX_EVOLUTION_STEPS = 2    # Number of times to iteratively refine the chosen prototype
+DEFAULT_NUM_INITIAL_IDEAS = 10
+DEFAULT_NUM_PROTOTYPES = 100 # Number of prototypes to generate for the selected idea
+MAX_EVOLUTION_STEPS = 42  # Number of times to iteratively refine the chosen prototype
 
 def generate_initial_ideas(user_query: str, num_ideas: int = DEFAULT_NUM_INITIAL_IDEAS, generator_model: str = GENERATOR_MODEL_NAME) -> list[str]:
     """Generates a list of initial broad ideas to solve the user's query."""

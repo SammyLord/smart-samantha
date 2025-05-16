@@ -45,14 +45,28 @@ def chat():
         print(f"App.py: get_ollama_response intent. Engaging multi-step solver for: {user_message}")
         ai_response = solve_with_multi_step_refinement(user_message)
     elif intent == "autosci_mode":
-        print(f"App.py: AutoSCI mode triggered.")
-        ai_response = trigger_autosci_discovery() # Uses THINKER_MODEL_NAME by default
+        print(f"App.py: AutoSCI mode initiated by user.")
+        # Send an initial response to display loading message, client will make a follow-up request
+        return jsonify({
+            'action': 'autosci_initiate',
+            'response': "Please wait, thinking deeply.... this may take a few days or so! Accessing infinite wisdom engines..."
+        })
     else:
         # Fallback for unrecognized intents or if something goes wrong with NLU
         print(f"App.py: Unrecognized NLU intent ('{intent}') or fallback. Engaging multi-step solver for: {user_message}")
         ai_response = solve_with_multi_step_refinement(user_message)
 
     return jsonify({'response': ai_response})
+
+@app.route('/execute_autosci', methods=['POST']) # POST to potentially pass params later if needed
+def execute_autosci_route():
+    """Endpoint dedicated to running the (potentially long) AutoSCI process."""
+    print("App.py: /execute_autosci called. Starting AutoSCI discovery...")
+    # No user input is directly used for autosci from this endpoint currently
+    # It uses the hardcoded prompt in trigger_autosci_discovery
+    discovery_result = trigger_autosci_discovery() 
+    print("App.py: AutoSCI discovery finished.")
+    return jsonify({'response': discovery_result})
 
 if __name__ == '__main__':
     app.run(debug=True) 

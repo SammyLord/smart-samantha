@@ -194,6 +194,36 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.error) {
                 appendMessage(`Error: ${data.error}`, 'ai-message error-message');
                 speak(`Error: ${data.error}`);
+            } else if (data.action === 'autosci_initiate') {
+                // Display the initial loading message for AutoSCI
+                appendMessage(data.response, 'ai-message system-message'); // Use a distinct class if you want to style it
+                speak(data.response);
+
+                // Now make the follow-up request to actually execute AutoSCI
+                fetch('/execute_autosci', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                    // body: JSON.stringify({}) // No body needed for now, but can add if params are needed
+                })
+                .then(response => response.json())
+                .then(autosciData => {
+                    if (autosciData.error) {
+                        appendMessage(`AutoSCI Error: ${autosciData.error}`, 'ai-message error-message');
+                        speak(`AutoSCI Error: ${autosciData.error}`);
+                    } else {
+                        appendMessage(autosciData.response, 'ai-message');
+                        speak(autosciData.response);
+                    }
+                })
+                .catch(error => {
+                    console.error('AutoSCI Execution Error:', error);
+                    const errorMsg = 'Sorry, something went wrong while trying to make an AutoSCI discovery.';
+                    appendMessage(errorMsg, 'ai-message error-message');
+                    speak(errorMsg);
+                });
+
             } else {
                 appendMessage(data.response, 'ai-message');
                 speak(data.response); // Speak the AI's response
