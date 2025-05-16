@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, jsonify
 from llm import get_ollama_response
 from nlu import process_user_intent
 from integrations import weather, web_search, bible, nextcloud # Import integration modules
+from integrations.autosci import trigger_autosci_discovery # Import the new autosci function
+from problem_solver import solve_with_multi_step_refinement # Updated import
 
 app = Flask(__name__)
 
@@ -37,11 +39,18 @@ def chat():
         else:
             ai_response = nextcloud.handle_nextcloud_action(creds=nextcloud_creds, nlu_data=nlu_result)
     elif intent == "casual_chat":
-        # For casual chat, directly use the LLM for a general response
-        ai_response = get_ollama_response(user_message) # Or a slightly modified prompt for chat
+        print(f"App.py: Casual chat intent. Engaging multi-step solver for: {user_message}")
+        ai_response = solve_with_multi_step_refinement(user_message)
+    elif intent == "get_ollama_response": # This intent might be redundant
+        print(f"App.py: get_ollama_response intent. Engaging multi-step solver for: {user_message}")
+        ai_response = solve_with_multi_step_refinement(user_message)
+    elif intent == "autosci_mode":
+        print(f"App.py: AutoSCI mode triggered.")
+        ai_response = trigger_autosci_discovery() # Uses THINKER_MODEL_NAME by default
     else:
-        # Fallback if intent isn't recognized by NLU (should ideally be casual_chat)
-        ai_response = get_ollama_response(f"The user said: {user_message}. Try to respond helpfully.")
+        # Fallback for unrecognized intents or if something goes wrong with NLU
+        print(f"App.py: Unrecognized NLU intent ('{intent}') or fallback. Engaging multi-step solver for: {user_message}")
+        ai_response = solve_with_multi_step_refinement(user_message)
 
     return jsonify({'response': ai_response})
 

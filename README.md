@@ -1,14 +1,20 @@
 # Smart Samantha AI Agent
 
-A conversational AI agent with a web interface, powered by a local LLM via Ollama, and integrated with various services.
+A conversational AI agent with a web interface, powered by local LLMs via Ollama, and integrated with various services.
 
 ## Overview
 
-Smart Samantha is a Python-based AI assistant built with Flask for the web interface and an Ollama-compatible Large Language Model (LLM) for its core intelligence. The agent aims to understand natural language requests, process them, and interact with external services or provide conversational responses.
+Smart Samantha is a Python-based AI assistant built with Flask for the web interface and utilizes a multi-LLM, multi-step approach for its core intelligence. The agent aims to understand natural language requests, process them through a sophisticated reasoning pipeline, and interact with external services or provide deeply considered conversational responses.
 
 Current capabilities include:
 - Text-based and voice-based (via browser STT/TTS) chat.
 - Natural Language Understanding (NLU) to determine user intent and extract entities.
+- **Advanced Problem Solving**: For general queries, uses a multi-step refinement process involving two different LLMs:
+    1.  **Initial Idea Generation**: A generator LLM (`sparksammy/tinysam-l3.2-v2`) brainstorms initial approaches.
+    2.  **Best Approach Selection**: A thinker LLM (`sparksammy/samantha-thinker-v2`) selects the most promising conceptual approach.
+    3.  **Prototype Generation**: The generator LLM creates concrete prototypes for the selected approach.
+    4.  **Iterative Evolution**: The thinker LLM selects the best prototype and iteratively refines it into a final solution.
+- **"AutoSCI" Mode**: A creative mode where the AI invents a fictional scientific/mathematical theory and then a related "discovery," powered by the thinker LLM.
 - Integration with Nextcloud (listing files).
 - Fetching current weather information.
 - Performing web searches (via DuckDuckGo Instant Answers).
@@ -18,8 +24,13 @@ Current capabilities include:
 
 -   **Web Interface**: Chat with Samantha through a clean web UI.
 -   **Voice Interaction**: Use your microphone to talk to Samantha and hear responses spoken back (requires browser support for Web Speech API).
--   **LLM Powered**: Uses the `sparksammy/tinysam-l3.2-v2` model (configurable) via an Ollama-compatible API endpoint (`https://ollama-api.nodemixaholic.com/v1`).
--   **NLU Layer**: Processes user input to determine intent (e.g., get weather, search web, list Nextcloud files) and extracts relevant entities (e.g., location for weather, search query, path for Nextcloud).
+-   **Dual LLM Powered**: 
+    -   Generator Model: `sparksammy/tinysam-l3.2-v2` (for brainstorming and prototyping).
+    -   Thinker Model: `sparksammy/samantha-thinker-v2` (for evaluation, selection, refinement, and creative tasks).
+    -   Both accessed via an Ollama-compatible API endpoint (`https://ollama-api.nodemixaholic.com/v1`).
+-   **NLU Layer**: Processes user input to determine intent (e.g., get weather, search web, list Nextcloud files, AutoSCI mode) and extracts relevant entities.
+-   **Multi-Step Refinement for General Queries**: Provides more thoughtful and developed answers to complex or open-ended questions.
+-   **Creative "AutoSCI" Mode**: Allows the AI to generate imaginative scientific theories and discoveries - similar to AlphaEvolve.
 -   **Modular Integrations**:
     -   **Nextcloud**: List files and folders from your Nextcloud instance. Credentials are set via a settings menu in the UI and stored in browser cookies. Operations are performed server-side.
     -   **Weather**: Get current weather information using the Open-Meteo API (no API key required).
@@ -31,7 +42,7 @@ Current capabilities include:
 
 1.  **Prerequisites**:
     *   Python 3.8+
-    *   An Ollama-compatible API endpoint accessible and running the desired model (default: `sparksammy/tinysam-l3.2-v2` at `https://ollama-api.nodemixaholic.com/v1`). You can change the `OLLAMA_API_URL` and `MODEL_NAME` constants in `llm.py`.
+    *   An Ollama-compatible API endpoint accessible and running the desired models (default: `sparksammy/tinysam-l3.2-v2` and `sparksammy/samantha-thinker-v2` at `https://ollama-api.nodemixaholic.com/v1`). You can change the `OLLAMA_API_URL` and model name constants in `llm.py`.
 
 2.  **Clone the Repository (if applicable)**:
     ```bash
@@ -60,13 +71,15 @@ Current capabilities include:
     ```bash
     python app.py
     ```
+    *(Note: The multi-step refinement process for general queries can be slow due to multiple LLM calls. Monitor your console for progress logs from `problem_solver.py`.)*
 
 2.  **Access the Web Interface**:
     Open your web browser and navigate to `http://127.0.0.1:5000` (or the address shown in your terminal).
 
 ## Using the Features
 
--   **Chat**: Type your message in the input box or click the microphone icon to use voice input.
+-   **Chat**: Type your message in the input box or click the microphone icon to use voice input. General queries will trigger the multi-step refinement process.
+-   **"AutoSCI" Mode**: Try saying "activate autosci mode" or "make a scientific discovery".
 -   **Nextcloud Integration**:
     1.  Click the "⚙️ Settings" button in the top-right corner.
     2.  Enter your Nextcloud instance URL (e.g., `https://cloud.example.com`), your Nextcloud username, and your Nextcloud password.
@@ -79,12 +92,14 @@ Current capabilities include:
 ## Code Structure
 
 -   `app.py`: Main Flask application, handles routing and core logic.
--   `llm.py`: Handles communication with the Ollama LLM API.
+-   `llm.py`: Handles communication with the Ollama LLM API (supports multiple models).
 -   `nlu.py`: Performs Natural Language Understanding (intent recognition, entity extraction).
+-   `problem_solver.py`: Implements the multi-step refinement logic for general queries using generator and thinker LLMs.
 -   `requirements.txt`: Python dependencies.
 -   `README.md`: This file.
--   `integrations/`: Directory for modules that connect to external services.
+-   `integrations/`: Directory for modules that connect to external services or provide special modes.
     -   `__init__.py`
+    -   `autosci.py` (Implements the AutoSCI creative mode)
     -   `bible.py`
     -   `nextcloud.py` (server-side WebDAV logic)
     -   `weather.py`
@@ -97,18 +112,14 @@ Current capabilities include:
 
 ## Future Enhancements (Potential Roadmap)
 
+-   **Performance Optimization**: Investigate ways to reduce latency for the multi-step refinement process (e.g., prompt optimization, considering asynchronous operations if feasible, parallel calls if models/API support).
 -   **Refined NLU**: Improve intent classification accuracy and entity extraction robustness.
--   **Expanded Nextcloud Capabilities**:
-    -   More efficient file/folder type detection (using PROPFIND).
-    -   Implement file upload, download, creation of folders, deletion, etc.
-    -   Allow navigation through Nextcloud directories.
--   **Contextual Conversations**: Maintain conversation history for more natural follow-up questions.
--   **Improved Security**:
-    -   For Nextcloud: Implement OAuth2 or Nextcloud App Passwords instead of storing user's main password.
--   **User Authentication/Accounts**: If the agent were to be multi-user or store persistent user-specific data.
--   **Additional Integrations**: As desired by the user (e.g., calendar, email, other APIs).
--   **Streaming LLM Responses**: For a more interactive feel.
--   **Customizable "Wake Word"**: For voice activation.
+-   **Advanced Prompt Engineering**: Continuously refine prompts for all stages of the problem-solving pipeline and AutoSCI mode for better quality and coherence.
+-   **Tune Idea/Prototype Counts**: Experiment with the number of initial ideas, prototypes, and evolution steps.
+-   **User Feedback for Latency**: Implement visual cues in the UI to indicate when the multi-step process is active.
+-   **Expanded Nextcloud Capabilities**.
+-   **Contextual Conversations**.
+-   **Improved Security for Nextcloud Credentials**.
 
 ---
-This README should provide a good starting point! 
+This README reflects the latest advanced features. 

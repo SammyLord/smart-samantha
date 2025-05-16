@@ -1,7 +1,11 @@
 from llm import get_ollama_response
 import re
 
-POSSIBLE_INTENTS = ["get_weather", "search_web", "get_bible_verse", "nextcloud_list_files", "nextcloud_query", "casual_chat"]
+POSSIBLE_INTENTS = [
+    "get_weather", "search_web", "get_bible_verse", 
+    "nextcloud_list_files", "nextcloud_query", 
+    "autosci_mode", "casual_chat"
+]
 
 def process_user_intent(user_message: str) -> dict:
     """
@@ -18,6 +22,7 @@ Respond with ONLY the chosen intent name. For example:
 - If the user wants weather, respond with "get_weather".
 - If the user asks to list or show files on Nextcloud (optionally mentioning a path), respond with "nextcloud_list_files".
 - For other Nextcloud related queries that are not listing files, respond with "nextcloud_query".
+- If the user explicitly asks for 'autosci mode' or 'make a scientific discovery', respond with "autosci_mode".
 '''
     
     raw_intent_response = get_ollama_response(intent_prompt).strip().lower()
@@ -110,5 +115,9 @@ Respond with ONLY the chosen intent name. For example:
                 extracted_path = extracted_path[:len(extracted_path)-len(word)]
 
         entities['path'] = extracted_path.strip() if extracted_path else '/'
+
+    elif identified_intent == "autosci_mode":
+        # No specific entities needed for this mode, it uses a hardcoded prompt.
+        pass
 
     return {"intent": identified_intent, "entities": entities} 
