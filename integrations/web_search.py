@@ -44,7 +44,7 @@ def search_web(query: str) -> str:
             if related_topics and isinstance(related_topics, list) and len(related_topics) > 0 and related_topics[0].get("Text"):
                 first_related_text = " First related topic: " + related_topics[0].get("Text")
             if data.get("AbstractURL"): 
-                 return f"Found an article titled '{heading}'. You can read more at {data.get("AbstractURL")} {first_related_text}"
+                 return f"Found an article titled '{heading}'. You can read more at {data.get('AbstractURL')} {first_related_text}"
             return f"Found an article titled '{heading}'. {first_related_text}"
         elif result_type == 'D':
             related_topics = data.get("RelatedTopics", [])

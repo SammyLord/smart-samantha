@@ -1,4 +1,5 @@
-import webdav.client as wc
+from webdav3.client import Client
+
 import os # For path manipulations if needed later
 
 def get_nextcloud_info(request_details: str) -> str:
@@ -30,7 +31,7 @@ def handle_nextcloud_action(creds: dict, nlu_data: dict) -> str:
     entities = nlu_data.get('entities', {})
 
     try:
-        client = wc.Client(options)
+        client = Client(options)
         # client.verify = True # Set to False if SSL cert issues, True by default
     except Exception as e:
         print(f"Nextcloud: Error creating WebDAV client for {options.get('webdav_hostname')}: {e}")
@@ -62,7 +63,7 @@ def handle_nextcloud_action(creds: dict, nlu_data: dict) -> str:
     
     return "I understood you want to do something with Nextcloud, but I'm not sure what yet!"
 
-def _list_nextcloud_path(client: wc.Client, path: str, username: str) -> str:
+def _list_nextcloud_path(client: Client, path: str, username: str) -> str:
     """Helper function to list files and folders at a given path."""
     try:
         # The path for client.list is relative to /remote.php/dav/files/USERNAME/
@@ -78,7 +79,7 @@ def _list_nextcloud_path(client: wc.Client, path: str, username: str) -> str:
             try:
                 if client.check(actual_path_to_list) and not client.is_dir(actual_path_to_list):
                     return f"'{path if path else '/'}' is a file, not a directory."
-            except wc.WebDAVException:
+            except:
                 pass # If check fails, it's likely not found or not accessible
             return f"No files or folders found in Nextcloud at path: '{path if path else '/'}' or path does not exist/is not accessible."
 
@@ -94,7 +95,7 @@ def _list_nextcloud_path(client: wc.Client, path: str, username: str) -> str:
                 # But be mindful this does an extra request per item.
                 if client.is_dir(full_item_path):
                     is_dir = True
-            except wc.WebDAVException as e:
+            except:
                  # Could be a file that client.is_dir has issues with, or access error
                  print(f"Nextcloud: Could not determine type for {full_item_path}: {e}")
             
@@ -106,7 +107,7 @@ def _list_nextcloud_path(client: wc.Client, path: str, username: str) -> str:
         
         return "\n".join(response_lines)
 
-    except wc.WebDAVException as e:
+    except Exception as e:
         print(f"Nextcloud: WebDAV error listing '{path if path else '/'}' for user {username}: {e}")
         # Check for common errors based on status code if possible
         if e.response and e.response.status_code == 401:
@@ -117,9 +118,3 @@ def _list_nextcloud_path(client: wc.Client, path: str, username: str) -> str:
     except Exception as e:
         print(f"Nextcloud: Unexpected error listing '{path if path else '/'}' for user {username}: {e}")
         return f"An unexpected error occurred with Nextcloud: {e}"
-
-# Placeholder for future functions:
-# def upload_to_nextcloud(client: wc.Client, local_path: str, remote_path: str) -> str:
-#     pass
-# def download_from_nextcloud(client: wc.Client, remote_path: str, local_path: str) -> str:
-#     pass 
