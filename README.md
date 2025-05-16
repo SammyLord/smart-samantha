@@ -14,7 +14,7 @@ Current capabilities include:
     2.  **Best Approach Selection**: A thinker LLM (`sparksammy/samantha-thinker-v2`) selects the most promising conceptual approach.
     3.  **Prototype Generation**: The generator LLM creates concrete prototypes for the selected approach.
     4.  **Iterative Evolution**: The thinker LLM selects the best prototype and iteratively refines it into a final solution.
-- **"AutoSCI" Mode**: A creative mode where the AI invents a fictional scientific/mathematical theory and then a related "discovery," powered by the thinker LLM.
+- **"AutoSCI" Mode**: A creative mode where the AI invents a scientific/mathematical theory and then a related "discovery," powered by the thinker LLM.
 - Integration with Nextcloud (listing files).
 - Fetching current weather information.
 - Performing web searches (via DuckDuckGo Instant Answers).
