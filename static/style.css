@@ -160,4 +160,19 @@ button {
     color: black;
     text-decoration: none;
     cursor: pointer;
+}
+
+/* System and Error Message Styles */
+.system-message {
+    font-style: italic;
+    color: #4a5568; /* Tailwind gray-700 */
+    background-color: #f7fafc; /* Tailwind gray-100 */
+    border-left: 3px solid #4299e1; /* Tailwind blue-500 */
+}
+
+.ai-message.error-message { /* More specific for AI error messages */
+    color: #c53030; /* Tailwind red-700 */
+    background-color: #fff5f5; /* Tailwind red-100 */
+    border-left: 3px solid #f56565; /* Tailwind red-500 */
+    font-weight: bold;
 } 

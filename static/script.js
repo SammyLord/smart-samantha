@@ -166,6 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
         appendMessage(messageText, 'user-message');
         userInput.value = '';
 
+        // Create a placeholder for AI's response / system messages
+        let aiResponsePlaceholder = appendMessage("Samantha is thinking...", 'ai-message system-message');
+
         // Prepare payload for the backend
         const payload = { message: messageText };
 
@@ -191,49 +194,61 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(response => response.json())
         .then(data => {
+            // Clear placeholder styles first, then update content and add new class if needed
+            aiResponsePlaceholder.classList.remove('system-message', 'error-message');
+
             if (data.error) {
-                appendMessage(`Error: ${data.error}`, 'ai-message error-message');
+                aiResponsePlaceholder.textContent = `Error: ${data.error}`;
+                aiResponsePlaceholder.classList.add('error-message');
                 speak(`Error: ${data.error}`);
             } else if (data.action === 'autosci_initiate') {
-                // Display the initial loading message for AutoSCI
-                appendMessage(data.response, 'ai-message system-message'); // Use a distinct class if you want to style it
+                aiResponsePlaceholder.textContent = data.response; // The "Please wait, thinking deeply..." message
+                aiResponsePlaceholder.classList.add('system-message');
                 speak(data.response);
 
                 // Now make the follow-up request to actually execute AutoSCI
+                // Create a new placeholder for the actual AutoSCI discovery result
+                let autosciResultPlaceholder = appendMessage("AutoSCI discovery in progress...", 'ai-message system-message');
+                
                 fetch('/execute_autosci', { 
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     }
-                    // body: JSON.stringify({}) // No body needed for now, but can add if params are needed
                 })
                 .then(response => response.json())
                 .then(autosciData => {
+                    autosciResultPlaceholder.classList.remove('system-message', 'error-message');
                     if (autosciData.error) {
-                        appendMessage(`AutoSCI Error: ${autosciData.error}`, 'ai-message error-message');
+                        autosciResultPlaceholder.textContent = `AutoSCI Error: ${autosciData.error}`;
+                        autosciResultPlaceholder.classList.add('error-message');
                         speak(`AutoSCI Error: ${autosciData.error}`);
                     } else {
-                        appendMessage(autosciData.response, 'ai-message');
+                        autosciResultPlaceholder.textContent = autosciData.response;
+                        // autosciResultPlaceholder.classList.remove('system-message'); // Already removed above
                         speak(autosciData.response);
                     }
                 })
                 .catch(error => {
                     console.error('AutoSCI Execution Error:', error);
-                    const errorMsg = 'Sorry, something went wrong while trying to make an AutoSCI discovery.';
-                    appendMessage(errorMsg, 'ai-message error-message');
-                    speak(errorMsg);
+                    autosciResultPlaceholder.classList.remove('system-message');
+                    autosciResultPlaceholder.textContent = 'Sorry, something went wrong while trying to make an AutoSCI discovery.';
+                    autosciResultPlaceholder.classList.add('error-message');
+                    speak(autosciResultPlaceholder.textContent);
                 });
 
-            } else {
-                appendMessage(data.response, 'ai-message');
-                speak(data.response); // Speak the AI's response
+            } else { // Standard successful response (including multi-step refinement)
+                aiResponsePlaceholder.textContent = data.response;
+                // aiResponsePlaceholder.classList.remove('system-message'); // Already removed above
+                speak(data.response);
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            const errorMsg = 'Sorry, something went wrong with the request.';
-            appendMessage(errorMsg, 'ai-message');
-            speak(errorMsg);
+            aiResponsePlaceholder.classList.remove('system-message');
+            aiResponsePlaceholder.textContent = 'Sorry, something went wrong with the request.';
+            aiResponsePlaceholder.classList.add('error-message');
+            speak(aiResponsePlaceholder.textContent);
         });
     }
 
@@ -243,5 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
         messageDiv.textContent = text;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
+        return messageDiv; // Return the created element
     }
 }); 
