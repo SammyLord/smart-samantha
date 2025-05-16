@@ -5,7 +5,32 @@ from integrations import weather, web_search, bible, nextcloud # Import integrat
 from integrations.autosci import trigger_autosci_discovery # Import the new autosci function
 from problem_solver import solve_with_multi_step_refinement # Updated import
 
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+import time # For potential cleanup logic if desired, not strictly used in core logic yet
+
 app = Flask(__name__)
+
+# Initialize a ThreadPoolExecutor
+# Adjust max_workers as needed. For very long tasks, a small number is fine.
+executor = ThreadPoolExecutor(max_workers=2) 
+# In-memory store for task statuses and results.
+# WARNING: This is lost if the Flask server restarts. 
+# For persistent tasks, use a database or a proper task queue (Celery/RQ).
+autosci_tasks = {}
+
+def run_autosci_in_background(task_id: str):
+    """Wrapper function to run trigger_autosci_discovery in a background thread and store its result."""
+    print(f"App.py: Background task {task_id} started for AutoSCI discovery.")
+    try:
+        discovery_result = trigger_autosci_discovery()
+        autosci_tasks[task_id]['status'] = 'completed'
+        autosci_tasks[task_id]['result'] = discovery_result
+        print(f"App.py: Background task {task_id} completed successfully.")
+    except Exception as e:
+        print(f"App.py: Background task {task_id} failed: {e}")
+        autosci_tasks[task_id]['status'] = 'failed'
+        autosci_tasks[task_id]['error'] = str(e)
 
 @app.route('/')
 def index():
@@ -26,7 +51,20 @@ def chat():
     
     ai_response = ""
 
-    if intent == "get_weather":
+    if intent == "autosci_mode":
+        # Generate a unique task ID for this AutoSCI request
+        task_id = str(uuid.uuid4())
+        autosci_tasks[task_id] = {'status': 'running', 'result': None}
+        
+        # Start the AutoSCI process in a background thread
+        executor.submit(run_autosci_in_background, task_id)
+        
+        return jsonify({
+            'action': 'autosci_initiate_prompt',
+            'task_id': task_id,
+            'response': "AutoSCI mode acknowledged. Starting deep discovery process in background..."
+        })
+    elif intent == "get_weather":
         ai_response = weather.get_weather_data(location=entities.get('location'))
     elif intent == "search_web":
         ai_response = web_search.search_web(query=entities.get('query_term'))
@@ -37,16 +75,8 @@ def chat():
             ai_response = "It looks like you want to interact with Nextcloud, but your credentials aren't set or are incomplete. Please configure them in the settings (⚙️ icon)."
         else:
             ai_response = nextcloud.handle_nextcloud_action(creds=nextcloud_creds, nlu_data=nlu_result)
-    elif intent == "autosci_mode":
-        print(f"App.py: AutoSCI mode initiated by user.")
-        return jsonify({
-            'action': 'autosci_initiate',
-            'response': "Please wait, thinking deeply.... this may take a few days or so! Accessing infinite wisdom engines..."
-        })
-    # Default handler for casual chat, get_ollama_response, or any other fallbacks
     else:  
         if use_evolution:
-            # Log the specific intent if available, otherwise note it as a fallback/general query
             log_intent_str = f"intent: '{intent}'" if intent else "fallback/general query"
             print(f"App.py: {log_intent_str}. Engaging multi-step solver (evolution ON) for: {user_message}")
             ai_response = solve_with_multi_step_refinement(user_message)
@@ -59,11 +89,68 @@ def chat():
 
 @app.route('/execute_autosci', methods=['POST'])
 def execute_autosci_route():
-    """Endpoint dedicated to running the (potentially long) AutoSCI process."""
-    print("App.py: /execute_autosci called. Starting AutoSCI discovery...")
-    discovery_result = trigger_autosci_discovery()
-    print("App.py: AutoSCI discovery finished.")
-    return jsonify({'response': discovery_result})
+    """Endpoint to start the (potentially long) AutoSCI process in the background."""
+    task_id = str(uuid.uuid4())
+    autosci_tasks[task_id] = {'status': 'pending', 'result': None, 'error': None}
+    
+    # Submit the long-running task to the executor
+    executor.submit(run_autosci_in_background, task_id)
+    
+    print(f"App.py: /execute_autosci called. Task {task_id} submitted for AutoSCI discovery.")
+    return jsonify({
+        'message': 'AutoSCI discovery process has been initiated.',
+        'task_id': task_id,
+        'status_endpoint': f'/autosci_task/{task_id}' # Provide client with the status check URL
+    }), 202 # HTTP 202 Accepted
+
+@app.route('/autosci_task/<task_id>', methods=['GET'])
+def get_autosci_task_status(task_id: str):
+    """Endpoint to check the status and result of an AutoSCI task."""
+    task_info = autosci_tasks.get(task_id)
+    if not task_info:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    response_data = {
+        'task_id': task_id,
+        'status': task_info['status']
+    }
+    if task_info['status'] == 'completed':
+        response_data['result'] = task_info['result']
+    elif task_info['status'] == 'failed':
+        response_data['error'] = task_info['error']
+    
+    # Optional: Clean up old tasks after they've been retrieved or after a certain time
+    # if task_info['status'] in ['completed', 'failed']:
+    #     # Consider if you want to remove from memory after first fetch of completed/failed status
+    #     # or implement a more sophisticated cleanup mechanism.
+    #     pass
+
+    return jsonify(response_data)
+
+@app.route('/check_autosci_status/<task_id>', methods=['GET'])
+def check_autosci_status(task_id):
+    """Check the status of a running AutoSCI task."""
+    if task_id not in autosci_tasks:
+        return jsonify({'error': 'Task not found'}), 404
+        
+    task_info = autosci_tasks[task_id]
+    if task_info['status'] == 'completed':
+        # Clean up the task after sending the result
+        result = task_info['result']
+        del autosci_tasks[task_id]
+        return jsonify({'status': 'completed', 'response': result})
+    elif task_info['status'] == 'failed':
+        error = task_info.get('error', 'Unknown error occurred')
+        del autosci_tasks[task_id]
+        return jsonify({'status': 'failed', 'error': error})
+    else:
+        return jsonify({'status': 'running'})
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    # Ensure graceful shutdown of the executor if the app is stopped.
+    try:
+        app.run(debug=True, use_reloader=False) # use_reloader=False is important with ThreadPoolExecutor in debug mode
+    except KeyboardInterrupt:
+        print("Shutting down executor...")
+        executor.shutdown(wait=True)
+        print("Executor shutdown complete.") 

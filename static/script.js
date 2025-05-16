@@ -171,97 +171,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function sendMessage() {
         const messageText = userInput.value.trim();
-        if (messageText === '') return;
+        if (!messageText) return;
 
-        appendMessage(messageText, 'user-message');
+        // Add user message to chat
+        addMessageToChat('user', messageText);
         userInput.value = '';
 
-        // Create a placeholder for AI's response / system messages
-        let aiResponsePlaceholder = appendMessage("Samantha is thinking...", 'ai-message system-message');
-
-        // Prepare payload for the backend
-        const payload = { 
-            message: messageText,
-            use_evolution_mode: evolutionModeToggle ? evolutionModeToggle.checked : true
-        };
-
-        // Read Nextcloud creds from cookies and add to payload if they exist
-        const ncUrl = getCookie('nextcloudUrl');
-        const ncUser = getCookie('nextcloudUser');
-        const ncPass = getCookie('nextcloudPass');
-
-        if (ncUrl && ncUser && ncPass) {
-            payload.nextcloud_creds = {
-                url: ncUrl,
-                user: ncUser,
-                password: ncPass
-            };
-        }
+        // Show placeholder for AI response
+        const aiResponsePlaceholder = addMessageToChat('assistant', 'Thinking...', 'system-message');
+        const autosciResultPlaceholder = addMessageToChat('assistant', 'Starting AutoSCI discovery process...', 'system-message');
 
         fetch('/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(payload) // Send the modified payload
+            body: JSON.stringify({
+                message: messageText,
+                nextcloud_creds: getNextcloudCredentials(),
+                use_evolution_mode: true
+            })
         })
         .then(response => response.json())
         .then(data => {
-            // Clear placeholder styles first, then update content and add new class if needed
-            aiResponsePlaceholder.classList.remove('system-message', 'error-message');
+            if (data.action === 'autosci_initiate_prompt') {
+                // Start polling for AutoSCI task status
+                const taskId = data.task_id;
+                const pollInterval = setInterval(() => {
+                    fetch(`/check_autosci_status/${taskId}`)
+                        .then(response => response.json())
+                        .then(statusData => {
+                            if (statusData.status === 'completed') {
+                                clearInterval(pollInterval);
+                                autosciResultPlaceholder.classList.remove('system-message');
+                                autosciResultPlaceholder.textContent = statusData.response;
+                                speak(statusData.response);
+                            } else if (statusData.status === 'failed') {
+                                clearInterval(pollInterval);
+                                autosciResultPlaceholder.classList.remove('system-message');
+                                autosciResultPlaceholder.classList.add('error-message');
+                                autosciResultPlaceholder.textContent = `AutoSCI Error: ${statusData.error}`;
+                                speak(`AutoSCI Error: ${statusData.error}`);
+                            }
+                            // If status is 'running', continue polling
+                        })
+                        .catch(error => {
+                            clearInterval(pollInterval);
+                            console.error('AutoSCI Status Check Error:', error);
+                            autosciResultPlaceholder.classList.remove('system-message');
+                            autosciResultPlaceholder.classList.add('error-message');
+                            autosciResultPlaceholder.textContent = 'Sorry, something went wrong while checking the AutoSCI discovery status.';
+                            speak(autosciResultPlaceholder.textContent);
+                        });
+                }, 2000); // Poll every 2 seconds
 
-            if (data.error) {
-                aiResponsePlaceholder.textContent = `Error: ${data.error}`;
-                aiResponsePlaceholder.classList.add('error-message');
-                speak(`Error: ${data.error}`);
-            } else if (data.action === 'autosci_initiate') {
-                aiResponsePlaceholder.textContent = data.response; // The "Please wait, thinking deeply..." message
-                aiResponsePlaceholder.classList.add('system-message');
-                speak(data.response);
-
-                // Now make the follow-up request to actually execute AutoSCI
-                // Create a new placeholder for the actual AutoSCI discovery result
-                let autosciResultPlaceholder = appendMessage("AutoSCI discovery in progress...", 'ai-message system-message');
-                
-                fetch('/execute_autosci', { 
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                .then(response => response.json())
-                .then(autosciData => {
-                    autosciResultPlaceholder.classList.remove('system-message', 'error-message');
-                    if (autosciData.error) {
-                        autosciResultPlaceholder.textContent = `AutoSCI Error: ${autosciData.error}`;
-                        autosciResultPlaceholder.classList.add('error-message');
-                        speak(`AutoSCI Error: ${autosciData.error}`);
-                    } else {
-                        autosciResultPlaceholder.textContent = autosciData.response;
-                        // autosciResultPlaceholder.classList.remove('system-message'); // Already removed above
-                        speak(autosciData.response);
-                    }
-                })
-                .catch(error => {
-                    console.error('AutoSCI Execution Error:', error);
-                    autosciResultPlaceholder.classList.remove('system-message');
-                    autosciResultPlaceholder.textContent = 'Sorry, something went wrong while trying to make an AutoSCI discovery.';
-                    autosciResultPlaceholder.classList.add('error-message');
-                    speak(autosciResultPlaceholder.textContent);
-                });
-
-            } else { // Standard successful response (including multi-step refinement)
+                // Remove the initial AI response placeholder since we're handling AutoSCI
+                aiResponsePlaceholder.remove();
+            } else {
+                // Handle regular responses
                 aiResponsePlaceholder.textContent = data.response;
-                // aiResponsePlaceholder.classList.remove('system-message'); // Already removed above
+                aiResponsePlaceholder.classList.remove('system-message');
                 speak(data.response);
+                // Remove the AutoSCI placeholder since we're not using it
+                autosciResultPlaceholder.remove();
             }
         })
         .catch(error => {
             console.error('Error:', error);
             aiResponsePlaceholder.classList.remove('system-message');
-            aiResponsePlaceholder.textContent = 'Sorry, something went wrong with the request.';
             aiResponsePlaceholder.classList.add('error-message');
+            aiResponsePlaceholder.textContent = 'Sorry, something went wrong while processing your message.';
             speak(aiResponsePlaceholder.textContent);
+            // Remove the AutoSCI placeholder since we're not using it
+            autosciResultPlaceholder.remove();
         });
     }
 
@@ -274,5 +256,27 @@ document.addEventListener('DOMContentLoaded', () => {
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
         return messageDiv; // Return the created element
+    }
+
+    function addMessageToChat(role, content, className) {
+        const messageDiv = appendMessage(content, className);
+        messageDiv.classList.add('message', role);
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
+        return messageDiv;
+    }
+
+    function getNextcloudCredentials() {
+        const ncUrl = getCookie('nextcloudUrl');
+        const ncUser = getCookie('nextcloudUser');
+        const ncPass = getCookie('nextcloudPass');
+        if (ncUrl && ncUser && ncPass) {
+            return {
+                url: ncUrl,
+                user: ncUser,
+                password: ncPass
+            };
+        }
+        return null;
     }
 }); 
