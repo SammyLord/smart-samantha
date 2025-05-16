@@ -77,17 +77,17 @@ button {
 
 /* Settings Button and Modal Styles */
 .settings-btn {
-    position: fixed;
-    top: 15px;
-    right: 15px;
-    padding: 10px 15px;
+    /* position: fixed; */ /* Removed, now part of .top-buttons-container */
+    /* top: 15px; */       /* Removed */
+    /* right: 15px; */      /* Removed */
+    /* padding: 10px 15px; */ /* Moved to .header-btn */
     background-color: #6c757d;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    z-index: 1001; /* Ensure it's above other elements */
+    /* color: white; */ /* Moved to .header-btn */
+    /* border: none; */ /* Moved to .header-btn */
+    /* border-radius: 5px; */ /* Moved to .header-btn */
+    /* cursor: pointer; */ /* Moved to .header-btn */
+    /* font-size: 16px; */ /* Adjusted in .header-btn */
+    /* z-index: 1001; */ /* Moved to .top-buttons-container */
 }
 
 .modal {
@@ -175,4 +175,107 @@ button {
     background-color: #fff5f5; /* Tailwind red-100 */
     border-left: 3px solid #f56565; /* Tailwind red-500 */
     font-weight: bold;
+}
+
+/* Header Buttons Container */
+.top-buttons-container {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 1001;
+    display: flex;
+    gap: 10px; /* Spacing between buttons */
+}
+
+.header-btn { /* Common style for header buttons */
+    padding: 10px 15px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px; /* Slightly smaller font for these buttons */
+}
+
+.settings-btn { /* Keep specific if needed, or merge into .header-btn */
+    background-color: #6c757d;
+}
+
+.autosci-btn {
+    background-color: #17a2b8; /* A different color, e.g., info blue */
+}
+
+/* Adjust existing .settings-btn if it was absolutely positioned */
+/* If .settings-btn had `position:fixed`, `top`, `right` remove them if now handled by .top-buttons-container */
+/* For this example, assuming .settings-btn will inherit positioning from the container or only needs its background color now */
+
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+}
+
+.modal-content div {
+    margin-bottom: 15px;
+}
+
+.modal-content label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.modal-content input[type="text"],
+.modal-content input[type="url"],
+.modal-content input[type="password"] {
+    width: calc(100% - 22px); /* Account for padding and border */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.modal-content button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.modal-content button:hover {
+    background-color: #0056b3;
+}
+
+.close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
 } 

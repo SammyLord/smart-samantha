@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <button id="settingsButton" class="settings-btn">⚙️ Settings</button>
+    <div class="top-buttons-container">
+        <button id="settingsButton" class="settings-btn header-btn">⚙️ Settings</button>
+        <button id="autosciButton" class="autosci-btn header-btn">🔬 AutoSCI Discovery</button>
+    </div>
 
     <div id="settingsModal" class="modal">
         <div class="modal-content">

@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextcloudUrlInput = document.getElementById('nextcloudUrl');
     const nextcloudUserInput = document.getElementById('nextcloudUser');
     const nextcloudPassInput = document.getElementById('nextcloudPass');
+    const autosciButton = document.getElementById('autosciButton');
 
     // Cookie helper functions
     function setCookie(name, value, days) {
@@ -68,6 +69,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nextcloudPassInput && pass) nextcloudPassInput.value = pass;
     }
     loadSettings();
+
+    // AutoSCI Button Logic
+    if (autosciButton) {
+        autosciButton.onclick = () => {
+            userInput.value = "activate autosci mode"; // Pre-fill input with command
+            sendMessage(); // Trigger the send message logic
+        };
+    }
 
     // Speech Recognition (STT)
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
