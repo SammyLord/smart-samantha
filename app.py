@@ -18,19 +18,40 @@ executor = ThreadPoolExecutor(max_workers=2)
 # WARNING: This is lost if the Flask server restarts. 
 # For persistent tasks, use a database or a proper task queue (Celery/RQ).
 autosci_tasks = {}
+MAX_PARALLEL_THEORIES = 3  # Maximum number of theories to generate in parallel
 
-def run_autosci_in_background(task_id: str):
+def run_autosci_in_background(task_id: str, theory_index: int = 0):
     """Wrapper function to run trigger_autosci_discovery in a background thread and store its result."""
-    print(f"App.py: Background task {task_id} started for AutoSCI discovery.")
+    print(f"App.py: Background task {task_id} (theory {theory_index}) started for AutoSCI discovery.")
     try:
         discovery_result = trigger_autosci_discovery()
-        autosci_tasks[task_id]['status'] = 'completed'
-        autosci_tasks[task_id]['result'] = discovery_result
-        print(f"App.py: Background task {task_id} completed successfully.")
+        if 'theories' not in autosci_tasks[task_id]:
+            autosci_tasks[task_id]['theories'] = []
+        autosci_tasks[task_id]['theories'].append({
+            'index': theory_index,
+            'result': discovery_result
+        })
+        
+        # Check if all theories are complete
+        if len(autosci_tasks[task_id]['theories']) == autosci_tasks[task_id]['total_theories']:
+            # Sort theories by index and combine results
+            theories = sorted(autosci_tasks[task_id]['theories'], key=lambda x: x['index'])
+            combined_result = "\n\n---\n\n".join([f"Theory {i+1}:\n{t['result']}" for i, t in enumerate(theories)])
+            autosci_tasks[task_id]['status'] = 'completed'
+            autosci_tasks[task_id]['result'] = combined_result
+            print(f"App.py: All theories for task {task_id} completed successfully.")
+        print(f"App.py: Theory {theory_index} for task {task_id} completed successfully.")
     except Exception as e:
-        print(f"App.py: Background task {task_id} failed: {e}")
+        print(f"App.py: Theory {theory_index} for task {task_id} failed: {e}")
+        if 'theories' not in autosci_tasks[task_id]:
+            autosci_tasks[task_id]['theories'] = []
+        autosci_tasks[task_id]['theories'].append({
+            'index': theory_index,
+            'error': str(e)
+        })
+        # If any theory fails, mark the whole task as failed
         autosci_tasks[task_id]['status'] = 'failed'
-        autosci_tasks[task_id]['error'] = str(e)
+        autosci_tasks[task_id]['error'] = f"Theory {theory_index} failed: {str(e)}"
 
 @app.route('/')
 def index():
@@ -47,22 +68,29 @@ def chat():
     entities = nlu_result.get('entities', {})
     
     nextcloud_creds = request.json.get('nextcloud_creds')
-    use_evolution = request.json.get('use_evolution_mode', True) 
+    use_evolution = request.json.get('use_evolution_mode', True)
+    num_theories = min(int(request.json.get('num_theories', 1)), MAX_PARALLEL_THEORIES)
     
     ai_response = ""
 
     if intent == "autosci_mode":
         # Generate a unique task ID for this AutoSCI request
         task_id = str(uuid.uuid4())
-        autosci_tasks[task_id] = {'status': 'running', 'result': None}
+        autosci_tasks[task_id] = {
+            'status': 'running',
+            'result': None,
+            'total_theories': num_theories,
+            'theories': []
+        }
         
-        # Start the AutoSCI process in a background thread
-        executor.submit(run_autosci_in_background, task_id)
+        # Start multiple AutoSCI processes in parallel
+        for i in range(num_theories):
+            executor.submit(run_autosci_in_background, task_id, i)
         
         return jsonify({
             'action': 'autosci_initiate_prompt',
             'task_id': task_id,
-            'response': "AutoSCI mode acknowledged. Starting deep discovery process in background..."
+            'response': f"AutoSCI mode acknowledged. Starting {num_theories} parallel discovery processes in background..."
         })
     elif intent == "get_weather":
         ai_response = weather.get_weather_data(location=entities.get('location'))

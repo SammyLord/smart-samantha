@@ -19,18 +19,17 @@
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <span class="close-button" id="closeSettingsModal">&times;</span>
-            <h2>Nextcloud Settings</h2>
-            <div>
-                <label for="nextcloudUrl">Nextcloud URL:</label>
-                <input type="url" id="nextcloudUrl" placeholder="https://your.nextcloud.example.com">
+            <h2>Settings</h2>
+            <div class="settings-section">
+                <h3>Nextcloud Settings</h3>
+                <input type="text" id="nextcloudUrl" placeholder="Nextcloud URL (e.g., https://cloud.example.com)">
+                <input type="text" id="nextcloudUser" placeholder="Nextcloud Username">
+                <input type="password" id="nextcloudPass" placeholder="Nextcloud Password">
             </div>
-            <div>
-                <label for="nextcloudUser">Username:</label>
-                <input type="text" id="nextcloudUser" placeholder="your_username">
-            </div>
-            <div>
-                <label for="nextcloudPass">Password:</label>
-                <input type="password" id="nextcloudPass" placeholder="your_password">
+            <div class="settings-section">
+                <h3>AutoSCI Settings</h3>
+                <label for="numTheories">Number of Theories to Generate (1-3):</label>
+                <input type="number" id="numTheories" min="1" max="3" value="1">
             </div>
             <button id="saveSettingsButton">Save Settings</button>
         </div>

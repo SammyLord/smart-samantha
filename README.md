@@ -30,7 +30,12 @@ Current capabilities include:
     -   Both accessed via an Ollama-compatible API endpoint (`https://ollama-api.nodemixaholic.com/v1`).
 -   **NLU Layer**: Processes user input to determine intent (e.g., get weather, search web, list Nextcloud files, AutoSCI mode) and extracts relevant entities.
 -   **Multi-Step Refinement for General Queries**: Provides more thoughtful and developed answers to complex or open-ended questions.
--   **Creative "AutoSCI" Mode**: Allows the AI to generate imaginative scientific theories and discoveries - similar to AlphaEvolve.
+-   **Creative "AutoSCI" Mode**: 
+    - Generates imaginative scientific theories and discoveries (similar to AlphaEvolve)
+    - Supports parallel generation of multiple theories (1-3) in a single request
+    - Theories are generated asynchronously and combined into a single response
+    - Progress tracking for multiple theory generation
+    - Configurable number of theories via settings
 -   **Modular Integrations**:
     -   **Nextcloud**: List files and folders from your Nextcloud instance. Credentials are set via a settings menu in the UI and stored in browser cookies. Operations are performed server-side.
     -   **Weather**: Get current weather information using the Open-Meteo API (no API key required).
@@ -79,8 +84,13 @@ Current capabilities include:
 ## Using the Features
 
 -   **Chat**: Type your message in the input box or click the microphone icon to use voice input. General queries will trigger the multi-step refinement process.
--   **"AutoSCI" Mode**: Try saying "activate autosci mode" or "make a scientific discovery".
--   **Nextcloud Integration**:
+-   **"AutoSCI" Mode**: 
+    - Click the "🔬 AutoSCI Discovery" button or say "activate autosci mode"
+    - Configure the number of theories (1-3) in Settings
+    - Each theory is generated independently and in parallel
+    - Progress is shown as theories complete
+    - Results are combined and displayed when all theories are done
+    -   **Nextcloud Integration**:
     1.  Click the "⚙️ Settings" button in the top-right corner.
     2.  Enter your Nextcloud instance URL (e.g., `https://cloud.example.com`), your Nextcloud username, and your Nextcloud password.
     3.  Click "Save Settings".
@@ -94,32 +104,42 @@ Current capabilities include:
 -   `app.py`: Main Flask application, handles routing and core logic.
 -   `llm.py`: Handles communication with the Ollama LLM API (supports multiple models).
 -   `nlu.py`: Performs Natural Language Understanding (intent recognition, entity extraction).
--   `problem_solver.py`: Implements the multi-step refinement logic for general queries using generator and thinker LLMs.
+-   `problem_solver.py`: Implements the multi-step refinement logic for general queries using generator and thinker LLMs. Also used by AutoSCI mode for theory generation.
 -   `requirements.txt`: Python dependencies.
 -   `README.md`: This file.
 -   `integrations/`: Directory for modules that connect to external services or provide special modes.
     -   `__init__.py`
-    -   `autosci.py` (Implements the AutoSCI creative mode)
+    -   `autosci.py` (Implements the AutoSCI creative mode with parallel theory generation)
     -   `bible.py`
     -   `nextcloud.py` (server-side WebDAV logic)
     -   `weather.py`
     -   `web_search.py`
 -   `static/`: Contains static assets for the web interface.
     -   `style.css`: CSS for styling.
-    -   `script.js`: Client-side JavaScript for UI interactions, STT/TTS, and sending messages.
+    -   `script.js`: Client-side JavaScript for UI interactions, STT/TTS, sending messages, and handling parallel AutoSCI theory generation.
 -   `templates/`: Contains HTML templates.
     -   `index.html`: Main HTML page for the chat interface.
 
 ## Future Enhancements (Potential Roadmap)
 
 -   **Performance Optimization**: Investigate ways to reduce latency for the multi-step refinement process (e.g., prompt optimization, considering asynchronous operations if feasible, parallel calls if models/API support).
--   **Refined NLU**: Improve intent classification accuracy and entity extraction robustness.
--   **Advanced Prompt Engineering**: Continuously refine prompts for all stages of the problem-solving pipeline and AutoSCI mode for better quality and coherence.
--   **Tune Idea/Prototype Counts**: Experiment with the number of initial ideas, prototypes, and evolution steps.
--   **User Feedback for Latency**: Implement visual cues in the UI to indicate when the multi-step process is active.
--   **Expanded Nextcloud Capabilities**.
--   **Contextual Conversations**.
--   **Improved Security for Nextcloud Credentials**.
+    - Investigate ways to reduce latency for the multi-step refinement process
+    - Optimize parallel AutoSCI theory generation
+    - Consider implementing a proper task queue (e.g., Celery/RQ) for better scalability
+    -   **Refined NLU**: Improve intent classification accuracy and entity extraction robustness.
+    -   **Advanced Prompt Engineering**: Continuously refine prompts for all stages of the problem-solving pipeline and AutoSCI mode for better quality and coherence.
+    -   **Tune Idea/Prototype Counts**: Experiment with the number of initial ideas, prototypes, and evolution steps
+    -   Optimize the number of parallel theories for AutoSCI mode
+    -   Consider dynamic theory count based on system load
+    -   **User Feedback for Latency**: Implement visual cues in the UI to indicate when the multi-step process is active.
+    -   **AutoSCI Enhancements**:
+        - Add theory comparison and synthesis
+        - Implement theory quality scoring
+        - Add ability to save favorite theories
+        - Consider adding theory categories or themes
+    -   **Expanded Nextcloud Capabilities**.
+    -   **Contextual Conversations**.
+    -   **Improved Security for Nextcloud Credentials**.
 
 ---
 This README reflects the latest advanced features. 

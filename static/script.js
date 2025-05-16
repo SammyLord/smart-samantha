@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextcloudUrlInput = document.getElementById('nextcloudUrl');
     const nextcloudUserInput = document.getElementById('nextcloudUser');
     const nextcloudPassInput = document.getElementById('nextcloudPass');
+    const numTheoriesInput = document.getElementById('numTheories');
     const autosciButton = document.getElementById('autosciButton');
     const evolutionModeToggle = document.getElementById('evolutionModeToggle');
 
@@ -54,8 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
         saveSettingsButton.onclick = () => {
             setCookie('nextcloudUrl', nextcloudUrlInput.value, 365);
             setCookie('nextcloudUser', nextcloudUserInput.value, 365);
-            setCookie('nextcloudPass', nextcloudPassInput.value, 365); // Storing password in cookie is not ideal for production
-            alert('Nextcloud settings saved! Password is stored in a cookie, which is not recommended for sensitive data in production environments.');
+            setCookie('nextcloudPass', nextcloudPassInput.value, 365);
+            setCookie('numTheories', numTheoriesInput.value, 365);
+            alert('Settings saved! Note: Password is stored in a cookie, which is not recommended for sensitive data in production environments.');
             settingsModal.style.display = "none";
         };
     }
@@ -65,9 +67,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const url = getCookie('nextcloudUrl');
         const user = getCookie('nextcloudUser');
         const pass = getCookie('nextcloudPass');
+        const numTheories = getCookie('numTheories');
         if (nextcloudUrlInput && url) nextcloudUrlInput.value = url;
         if (nextcloudUserInput && user) nextcloudUserInput.value = user;
         if (nextcloudPassInput && pass) nextcloudPassInput.value = pass;
+        if (numTheoriesInput && numTheories) numTheoriesInput.value = numTheories;
     }
     loadSettings();
 
@@ -181,6 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const aiResponsePlaceholder = addMessageToChat('assistant', 'Thinking...', 'system-message');
         const autosciResultPlaceholder = addMessageToChat('assistant', 'Starting AutoSCI discovery process...', 'system-message');
 
+        // Get number of theories from settings
+        const numTheories = parseInt(getCookie('numTheories') || '1');
+
         fetch('/chat', {
             method: 'POST',
             headers: {
@@ -189,7 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({
                 message: messageText,
                 nextcloud_creds: getNextcloudCredentials(),
-                use_evolution_mode: true
+                use_evolution_mode: true,
+                num_theories: numTheories
             })
         })
         .then(response => response.json())
@@ -212,8 +220,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 autosciResultPlaceholder.classList.add('error-message');
                                 autosciResultPlaceholder.textContent = `AutoSCI Error: ${statusData.error}`;
                                 speak(`AutoSCI Error: ${statusData.error}`);
+                            } else {
+                                // Update status message to show progress
+                                const theories = autosci_tasks[taskId]?.theories || [];
+                                const completed = theories.length;
+                                const total = autosci_tasks[taskId]?.total_theories || numTheories;
+                                autosciResultPlaceholder.textContent = `AutoSCI discovery in progress... (${completed}/${total} theories completed)`;
                             }
-                            // If status is 'running', continue polling
                         })
                         .catch(error => {
                             clearInterval(pollInterval);
