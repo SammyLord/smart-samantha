@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time # For potential cleanup logic if desired, not strictly used in core logic yet
 
 # Verify license
-verified, message = verify_license(pow_list_url="https://nodemixaholic.com/powlist.txt")
+verified, message = verify_license(pow_list_url="https://github.com/SammyLord/drmixaholic-list/raw/refs/heads/main/pow_list.txt")
 if not verified:
     print(f'{message}')
     exit(1)

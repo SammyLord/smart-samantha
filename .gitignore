@@ -81,7 +81,7 @@ Thumbs.db
 dehklms.key
 
 # Optional: secrets or local config files (add if you create them)
- .env
+.env
 # local_settings.py
 # config.ini
 # *.sqlite3
