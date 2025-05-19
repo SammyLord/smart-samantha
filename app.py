@@ -4,10 +4,17 @@ from nlu import process_user_intent
 from integrations import weather, web_search, bible, nextcloud # Import integration modules
 from integrations.autosci import trigger_autosci_discovery # Import the new autosci function
 from problem_solver import solve_with_multi_step_refinement # Updated import
+from verifylib.python.verify import verify_license
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 import time # For potential cleanup logic if desired, not strictly used in core logic yet
+
+# Verify license
+verified, message = verify_license(pow_list_url="https://nodemixaholic.com/powlist.txt")
+if not verified:
+    print(f'{message}')
+    exit(1)
 
 app = Flask(__name__)
 
