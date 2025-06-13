@@ -9,6 +9,7 @@ from verifylib.python.verify import verify_license
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 import time # For potential cleanup logic if desired, not strictly used in core logic yet
+import re
 
 # Verify license
 verified, message = verify_license(pow_list_url="https://github.com/SammyLord/drmixaholic-list/raw/refs/heads/main/pow_list.txt")
@@ -101,18 +102,31 @@ def chat():
             'response': f"AutoSCI mode acknowledged. Starting {num_theories} parallel discovery processes in background..."
         })
     elif intent == "get_weather":
-        ai_response = weather.get_weather_data(location=entities.get('location'))
+        location = entities.get('location')
+        if not location:
+            ai_response = "I can get the weather for you, but I need a location. What city are you interested in?"
+        else:
+            ai_response = weather.get_weather_data(location=location)
     elif intent == "search_web":
-        ai_response = web_search.search_web(query=entities.get('query_term'))
+        query = entities.get('query_term')
+        ai_response = web_search.search_web(query=query, full_user_message=user_message)
     elif intent == "get_bible_verse":
         ai_response = bible.get_random_bible_verse()
     elif intent == "query_youtube_video":
-        video_id = entities.get('video_id')
-        question = entities.get('question')
-        if video_id and question:
+        # NLU identifies the intent, but we use regex here for robust extraction of the URL.
+        yt_regex = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
+        match = re.search(yt_regex, user_message)
+        
+        if match and match.group(1):
+            video_id = match.group(1)
+            # The question is whatever is not the URL.
+            question = user_message.split(match.group(0))[0].strip()
+            if not question:
+                question = "Summarize this video." # Default action
+            
             ai_response = youtube.handle_youtube_query(video_id=video_id, question=question)
         else:
-            ai_response = "I see you want to ask about a YouTube video, but I couldn't find a valid YouTube link or a clear question in your message."
+            ai_response = "I understood you want to ask about a YouTube video, but I couldn't find a valid YouTube link in your message."
     elif intent == "get_calendar_events":
         if not caldav_creds or not all(k in caldav_creds for k in ['url', 'user', 'password']):
             ai_response = "It looks like you want to check your calendar, but your CalDAV credentials aren't set. Please configure them in the settings (⚙️ icon)."
@@ -122,7 +136,10 @@ def chat():
         if not nextcloud_creds or not all(k in nextcloud_creds for k in ['url', 'user', 'password']):
             ai_response = "It looks like you want to interact with Nextcloud, but your credentials aren't set or are incomplete. Please configure them in the settings (⚙️ icon)."
         else:
-            ai_response = nextcloud.handle_nextcloud_action(creds=nextcloud_creds, nlu_data=nlu_result)
+            # Add a default for path in case NLU misses it, making it more robust.
+            if 'path' not in entities:
+                entities['path'] = '/'
+            ai_response = nextcloud.handle_nextcloud_action(creds=nextcloud_creds, nlu_data={'intent': intent, 'entities': entities})
     else:  
         if use_evolution:
             log_intent_str = f"intent: '{intent}'" if intent else "fallback/general query"

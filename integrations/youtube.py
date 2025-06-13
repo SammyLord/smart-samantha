@@ -1,5 +1,6 @@
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+from xml.etree.ElementTree import ParseError
 from llm import get_ollama_response, GENERATOR_MODEL_NAME
 
 def get_transcript(video_id: str) -> (str, str):

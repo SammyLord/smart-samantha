@@ -1,148 +1,195 @@
-from llm import get_ollama_response
+import json
 import re
+from llm import get_ollama_response
 
-POSSIBLE_INTENTS = [
-    "get_weather", "search_web", "get_bible_verse", 
-    "nextcloud_list_files", "nextcloud_query", 
-    "autosci_mode", "get_calendar_events", "query_youtube_video", "casual_chat"
-]
+# A dictionary defining the intents and the entities they might have.
+INTENT_DEFINITIONS = {
+    "get_weather": {
+        "description": "User wants to know the current weather.",
+        "entities": {
+            "location": {
+                "type": "string",
+                "description": "The city or area to get the weather for, e.g., 'San Francisco'."
+            }
+        },
+        "examples": [
+            "What's the weather like in London today?",
+            "tell me the weather for Paris"
+        ]
+    },
+    "search_web": {
+        "description": "User wants to search the web for information.",
+        "entities": {
+            "query_term": {
+                "type": "string",
+                "description": "The topic or question to search for, e.g., 'latest news on AI'."
+            }
+        },
+        "examples": [
+            "Search for the best Italian restaurants near me",
+            "Who is the CEO of OpenAI?"
+        ]
+    },
+    "get_bible_verse": {
+        "description": "User wants to get a random Bible verse.",
+        "entities": {},
+        "examples": [
+            "Read me a bible verse",
+            "Give me a random verse from the Bible"
+        ]
+    },
+    "nextcloud_list_files": {
+        "description": "User wants to list files or folders from their Nextcloud account.",
+        "entities": {
+            "path": {
+                "type": "string",
+                "description": "The directory path to list. Defaults to '/' if not specified. E.g., '/Documents/Work'."
+            }
+        },
+        "examples": [
+            "What files are in my Nextcloud?",
+            "Show me the contents of the /Photos/2024 folder on my cloud."
+        ]
+    },
+    "nextcloud_query": {
+        "description": "User has a general query or request for Nextcloud that isn't listing files.",
+        "entities": {
+            "task_details": {
+                "type": "string",
+                "description": "The specific task the user wants to perform on Nextcloud."
+            }
+        },
+        "examples": [
+            "Can you organize my files on Nextcloud?",
+            "On my cloud, find the presentation from last week."
+        ]
+    },
+    "get_calendar_events": {
+        "description": "User wants to know about their schedule, appointments, or events from their calendar.",
+        "entities": {
+             "date_range": {
+                "type": "string",
+                "description": "The specific date or range, e.g., 'today', 'tomorrow', 'this week'. (Optional)"
+            }
+        },
+        "examples": [
+            "What's on my agenda for today?",
+            "Do I have any meetings tomorrow?"
+        ]
+    },
+    "query_youtube_video": {
+        "description": "User is asking a question about a specific YouTube video, identified by a URL.",
+        "entities": {
+            "video_id": {
+                "type": "string",
+                "description": "The 11-character ID of the YouTube video extracted from the URL."
+            },
+            "question": {
+                "type": "string",
+                "description": "The specific question the user has about the video. Defaults to 'Summarize the video' if not explicit."
+            }
+        },
+        "examples": [
+            "What is the main argument in this video? https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "Summarize this for me: https://youtu.be/o-YBDTqX_ZU"
+        ]
+    },
+     "autosci_mode": {
+        "description": "User explicitly wants to activate the 'AutoSCI' scientific discovery mode.",
+        "entities": {},
+        "examples": [
+            "activate autosci mode",
+            "Let's make a scientific discovery"
+        ]
+    },
+    "casual_chat": {
+        "description": "User is making small talk or asking a question that doesn't fit other intents.",
+        "entities": {},
+        "examples": [
+            "Hello, how are you?",
+            "What's your name?"
+        ]
+    }
+}
+
+def generate_nlu_prompt(user_message: str) -> str:
+    """Generates the full prompt for the LLM to perform NLU."""
+    
+    # Dynamically create the intent list and formatting for the prompt
+    intent_list = "\n".join([f"- {name}: {details['description']}" for name, details in INTENT_DEFINITIONS.items()])
+    
+    json_format_description = """
+Respond with a single JSON object in the following format:
+{
+  "intent": "INTENT_NAME",
+  "entities": {
+    "entity_name_1": "value_1",
+    "entity_name_2": "value_2"
+  },
+  "confidence": 0.9,
+  "reasoning": "A brief explanation of why you chose this intent and entities."
+}
+
+- "intent" must be ONE of the intent names listed above.
+- "entities" must be an object containing the extracted entities for that intent. If no entities are found for a given intent, provide an empty object {}.
+- For `query_youtube_video`, extract the `video_id` from the URL. The user's question is the part of the message that is not the URL.
+- For `nextcloud_list_files`, if no path is mentioned, the `path` entity should default to "/".
+"""
+
+    prompt = f"""
+You are a highly intelligent Natural Language Understanding (NLU) engine. Your task is to analyze the user's message and determine their intent and any associated entities.
+
+Here are the possible intents:
+{intent_list}
+
+{json_format_description}
+
+---
+User message: "{user_message}"
+---
+
+Now, provide the JSON output based on the user's message.
+"""
+    return prompt
 
 def process_user_intent(user_message: str) -> dict:
     """
-    Processes the user's message to determine intent and extract entities.
-    Step 1: Use LLM to determine intent.
-    Step 2: If intent requires entities, use rule-based extraction from user_message.
+    Processes the user's message to determine intent and extract entities using an LLM.
+    The LLM is prompted to return a JSON object with the intent and entities.
     """
-    # Step 1: Determine intent using LLM
-    intent_prompt = f'''
-User message: "{user_message}"
-Based on this message, what is the user\'s primary intent?
-Choose ONE from this list: {', '.join(POSSIBLE_INTENTS)}.
-Respond with ONLY the chosen intent name. For example:
-- If the user wants weather, respond with "get_weather".
-- If the user asks to list or show files on Nextcloud (optionally mentioning a path), respond with "nextcloud_list_files".
-- For other Nextcloud related queries that are not listing files, respond with "nextcloud_query".
-- If the user explicitly asks for 'autosci mode' or 'make a scientific discovery', respond with "autosci_mode".
-- If the user asks about their schedule, calendar, appointments, or what they have on a certain day, respond with "get_calendar_events".
-- If the user asks a question and provides a YouTube link, respond with "query_youtube_video".
-'''
+    prompt = generate_nlu_prompt(user_message)
     
-    raw_intent_response = get_ollama_response(intent_prompt).strip().lower()
+    # LLM call
+    raw_response = get_ollama_response(prompt)
     
-    identified_intent = "casual_chat"  # Default intent
-    # Try to find the most direct match for the intent from the LLM's response
-    for pi in POSSIBLE_INTENTS:
-        if pi == raw_intent_response: # Exact match
-            identified_intent = pi
-            break
-    if identified_intent == "casual_chat": # If no exact match, check if intent is in a more verbose response
-        for pi in POSSIBLE_INTENTS:
-            if pi in raw_intent_response.split(): # e.g. LLM says "intent is get_weather"
-                identified_intent = pi
-                break
-            
-    entities = {}
+    # Regex to find JSON object in the response, in case the LLM adds extra text.
+    json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+    
+    if not json_match:
+        print(f"NLU Error: LLM did not return a valid JSON object. Response: {raw_response}")
+        return {"intent": "casual_chat", "entities": {}}
 
-    # Step 2: Rule-based entity extraction based on identified intent
-    if identified_intent == "get_weather":
-        match = re.search(r"(?:in|for|at|near|of)\s+([A-Za-z0-9\s\-]+)(?:\?|$|today|tomorrow)", user_message, re.IGNORECASE)
-        if match and match.group(1):
-            entities['location'] = match.group(1).strip()
-        else:
-            # A simple fallback: check for capitalized words if no prepositional phrase found
-            # This is very naive and might pick up other capitalized words.
-            potential_locations = re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b", user_message)
-            if potential_locations:
-                 # Check if any of these are not common words (this part is tricky and omitted for simplicity)
-                 # For now, just take the last one as a heuristic, could be improved
-                 entities['location'] = potential_locations[-1] 
-            else:
-                entities['location'] = None
-            
-    elif identified_intent == "search_web":
-        match = re.search(r"(?:search for|look up|find|what is|who is|tell me about)\s+(.+)(?:\?|$)", user_message, re.IGNORECASE)
-        if match and match.group(1):
-            entities['query_term'] = match.group(1).strip()
-        else:
-            # Fallback: if intent is search, but no clear query, take message after known trigger words, or whole message
-            temp_query = user_message
-            triggers = ["search for", "look up", "find", "what is", "who is", "tell me about", "search", "google"]
-            for trigger in triggers:
-                if user_message.lower().startswith(trigger + " "):
-                    temp_query = user_message[len(trigger)+1:].strip()
-                    break
-            entities['query_term'] = temp_query if temp_query != user_message or not entities.get('query_term') else user_message
-            if not entities['query_term']:
-                 entities['query_term'] = user_message # ultimate fallback
-
-    elif identified_intent == "nextcloud_query":
-        match = re.search(r"(?:nextcloud|on nextcloud)\s*(?:can you|please|could you|to)?\s*(.+)", user_message, re.IGNORECASE)
-        if match and match.group(1):
-            entities['task_details'] = match.group(1).strip()
-        else:
-            parts = re.split(r"nextcloud", user_message, maxsplit=1, flags=re.IGNORECASE)
-            if len(parts) > 1 and parts[1].strip():
-                entities['task_details'] = parts[1].strip().lstrip('to').strip()
-            else:
-                entities['task_details'] = None
-
-    elif identified_intent == "nextcloud_list_files":
-        # Try to extract a path. Examples:
-        # "list files in /documents/work"
-        # "show me my photos folder on nextcloud"
-        # "what's in /my_folder on nextcloud?"
-        path_match = re.search(r"(?:in|on|at|from|of|folder|directory|path)\s+([A-Za-z0-9\/_\-\.\s]+)", user_message, re.IGNORECASE)
-        # More specific: looking for paths that start with / or a typical folder name structure
-        explicit_path_match = re.search(r"\s(\/[A-Za-z0-9\/_\-\.\s]+|[A-Za-z0-9\._\-]+(?:\/[A-Za-z0-9\._\-]+)*)", user_message, re.IGNORECASE)
-
-        extracted_path = '/' # Default to root
-        if explicit_path_match and explicit_path_match.group(1):
-            # Prioritize explicit paths like /documents or my_folder/notes
-            extracted_path = explicit_path_match.group(1).strip()
-        elif path_match and path_match.group(1):
-            # Broader match for phrases like "in my documents folder"
-            # This might need further cleaning or validation if it captures too much.
-            potential_path = path_match.group(1).strip()
-            # Avoid capturing generic terms if they were part of the trigger phrase and not a real path
-            if potential_path.lower() not in ["nextcloud", "cloud", "server"]:
-                 extracted_path = potential_path
+    try:
+        parsed_json = json.loads(json_match.group(0))
         
-        # Ensure path starts with / if it doesn't look like an absolute path already and is not just /.
-        if not extracted_path.startswith('/') and extracted_path != '/':
-            extracted_path = '/' + extracted_path
+        # Validate the structure
+        intent = parsed_json.get("intent")
+        entities = parsed_json.get("entities", {})
         
-        # Simple cleaning: remove trailing common words that might be caught by regex if they are not part of path
-        for word in [" folder", " directory", " path", " on nextcloud", " from nextcloud"]:
-            if extracted_path.lower().endswith(word):
-                extracted_path = extracted_path[:len(extracted_path)-len(word)]
+        if intent not in INTENT_DEFINITIONS:
+            print(f"NLU Warning: LLM returned an unknown intent '{intent}'. Defaulting to casual_chat.")
+            return {"intent": "casual_chat", "entities": {}}
+            
+        # --- Post-processing for specific, structured entities ---
+        # We will handle specific extraction for youtube directly in the app route
+        # to ensure it's robust, so no special handling is needed here.
 
-        entities['path'] = extracted_path.strip() if extracted_path else '/'
+        print(f"NLU Result: Intent='{intent}', Entities={entities}")
+        return {"intent": intent, "entities": entities}
 
-    elif identified_intent == "autosci_mode":
-        # No specific entities needed for this mode, it uses a hardcoded prompt.
-        pass
-
-    elif identified_intent == "get_calendar_events":
-        # For now, we don't extract specific dates. The backend will default to today.
-        # This can be expanded later to parse dates from the message.
-        # e.g., "what's on my calendar tomorrow?" -> entities['date'] = 'tomorrow'
-        pass
-
-    elif identified_intent == "query_youtube_video":
-        # Regex to find YouTube video ID from various URL formats
-        yt_regex = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
-        match = re.search(yt_regex, user_message)
-        if match and match.group(1):
-            entities['video_id'] = match.group(1)
-            # Simple question extraction: take the part of the message before the URL
-            question_part = user_message.split(match.group(0))[0].strip()
-            if question_part:
-                entities['question'] = question_part
-            else:
-                # If the URL is at the start, ask a clarifying question or use a default.
-                entities['question'] = "Summarize this video."
-        else:
-            entities['video_id'] = None
-            entities['question'] = None
-
-    return {"intent": identified_intent, "entities": entities} 
+    except json.JSONDecodeError as e:
+        print(f"NLU Error: Failed to decode JSON from LLM response. Error: {e}. Response: {json_match.group(0)}")
+        return {"intent": "casual_chat", "entities": {}}
+    except Exception as e:
+        print(f"NLU Error: An unexpected error occurred during NLU processing. Error: {e}")
+        return {"intent": "casual_chat", "entities": {}} 
