@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from llm import get_ollama_response, GENERATOR_MODEL_NAME
 from nlu import process_user_intent
-from integrations import weather, web_search, bible, nextcloud, caldav_calendar # Import integration modules
+from integrations import weather, web_search, bible, nextcloud, caldav_calendar, youtube # Import integration modules
 from integrations.autosci import trigger_autosci_discovery # Import the new autosci function
 from problem_solver import solve_with_multi_step_refinement # Updated import
 from verifylib.python.verify import verify_license
@@ -106,6 +106,13 @@ def chat():
         ai_response = web_search.search_web(query=entities.get('query_term'))
     elif intent == "get_bible_verse":
         ai_response = bible.get_random_bible_verse()
+    elif intent == "query_youtube_video":
+        video_id = entities.get('video_id')
+        question = entities.get('question')
+        if video_id and question:
+            ai_response = youtube.handle_youtube_query(video_id=video_id, question=question)
+        else:
+            ai_response = "I see you want to ask about a YouTube video, but I couldn't find a valid YouTube link or a clear question in your message."
     elif intent == "get_calendar_events":
         if not caldav_creds or not all(k in caldav_creds for k in ['url', 'user', 'password']):
             ai_response = "It looks like you want to check your calendar, but your CalDAV credentials aren't set. Please configure them in the settings (⚙️ icon)."

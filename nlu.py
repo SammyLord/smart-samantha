@@ -4,7 +4,7 @@ import re
 POSSIBLE_INTENTS = [
     "get_weather", "search_web", "get_bible_verse", 
     "nextcloud_list_files", "nextcloud_query", 
-    "autosci_mode", "get_calendar_events", "casual_chat"
+    "autosci_mode", "get_calendar_events", "query_youtube_video", "casual_chat"
 ]
 
 def process_user_intent(user_message: str) -> dict:
@@ -24,6 +24,7 @@ Respond with ONLY the chosen intent name. For example:
 - For other Nextcloud related queries that are not listing files, respond with "nextcloud_query".
 - If the user explicitly asks for 'autosci mode' or 'make a scientific discovery', respond with "autosci_mode".
 - If the user asks about their schedule, calendar, appointments, or what they have on a certain day, respond with "get_calendar_events".
+- If the user asks a question and provides a YouTube link, respond with "query_youtube_video".
 '''
     
     raw_intent_response = get_ollama_response(intent_prompt).strip().lower()
@@ -126,5 +127,22 @@ Respond with ONLY the chosen intent name. For example:
         # This can be expanded later to parse dates from the message.
         # e.g., "what's on my calendar tomorrow?" -> entities['date'] = 'tomorrow'
         pass
+
+    elif identified_intent == "query_youtube_video":
+        # Regex to find YouTube video ID from various URL formats
+        yt_regex = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
+        match = re.search(yt_regex, user_message)
+        if match and match.group(1):
+            entities['video_id'] = match.group(1)
+            # Simple question extraction: take the part of the message before the URL
+            question_part = user_message.split(match.group(0))[0].strip()
+            if question_part:
+                entities['question'] = question_part
+            else:
+                # If the URL is at the start, ask a clarifying question or use a default.
+                entities['question'] = "Summarize this video."
+        else:
+            entities['video_id'] = None
+            entities['question'] = None
 
     return {"intent": identified_intent, "entities": entities} 
