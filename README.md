@@ -43,7 +43,8 @@ Current capabilities include:
     -   **Web Search**: Get quick answers and information using the DuckDuckGo Instant Answer API (no API key required).
     -   **Bible Verses**: Fetch random Bible verses from bible-api.com (no API key required).
     -   **Youtube Captions**: Grasp concepts of videos like never before!
--   **Settings**: Configure Nextcloud connection details (URL, username, password) through an in-app settings modal.
+    -   **CalDAV**: CalDAV integration for calendars.
+-   **Settings**: Configure external Account connection details (URL, username, password, etc) through an in-app settings modal.
 
 ## Setup
 
