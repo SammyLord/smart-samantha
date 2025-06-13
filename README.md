@@ -144,5 +144,3 @@ Current capabilities include:
     -   **Contextual Conversations**.
     -   **Improved Security for Nextcloud Credentials**.
 
----
-This README reflects the latest advanced features. 
