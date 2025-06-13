@@ -1,11 +1,17 @@
 import requests
 import json
+import os
+from dotenv import load_dotenv
 
-OLLAMA_API_URL = "https://ollama-api.nodemixaholic.com/v1"
+if not load_dotenv():
+    print("Error loading .env file. Ensure it contains OLLAMA_API_URL, POW, PRIVATE_KEY, GEN_MODEL, and THINK_MODEL.")
+    exit(1)
+
+OLLAMA_API_URL = os.getenv("OLLAMA_API_URL")
 # Primary model for general tasks, idea generation
-GENERATOR_MODEL_NAME = "sparksammy/tinysam-l3.2-v2" 
+GENERATOR_MODEL_NAME = os.getenv("GEN_MODEL")
 # Advanced model for critical thinking, evaluation, and complex tasks
-THINKER_MODEL_NAME = "sparksammy/samantha-thinker-v2" 
+THINKER_MODEL_NAME = os.getenv("THINK_MODEL")
 
 def get_ollama_response(prompt: str, model_name: str = GENERATOR_MODEL_NAME) -> str:
     """Gets a response from the Ollama API, allowing model selection."""
