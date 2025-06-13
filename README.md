@@ -19,6 +19,7 @@ Current capabilities include:
 - Fetching current weather information.
 - Performing web searches (via DuckDuckGo Instant Answers).
 - Retrieving random Bible verses.
+- And more!
 
 ## Features
 
@@ -41,6 +42,7 @@ Current capabilities include:
     -   **Weather**: Get current weather information using the Open-Meteo API (no API key required).
     -   **Web Search**: Get quick answers and information using the DuckDuckGo Instant Answer API (no API key required).
     -   **Bible Verses**: Fetch random Bible verses from bible-api.com (no API key required).
+    -   **Youtube Captions**: Grasp concepts of videos like never before!
 -   **Settings**: Configure Nextcloud connection details (URL, username, password) through an in-app settings modal.
 
 ## Setup
