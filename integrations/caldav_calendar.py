@@ -1,6 +1,41 @@
 from caldav import DAVClient
 from caldav.lib.error import DAVError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta, MO, TU, WE, TH, FR, SA, SU
+
+def parse_date_range(date_str: str) -> (datetime, datetime):
+    """
+    Parses a natural language string into a start and end datetime object.
+    Returns a tuple of (start_date, end_date).
+    """
+    today = date.today()
+    date_str = date_str.lower().strip() if date_str else "today"
+
+    if "today" in date_str:
+        start_date = today
+        end_date = today
+    elif "tomorrow" in date_str:
+        start_date = today + timedelta(days=1)
+        end_date = start_date
+    elif "yesterday" in date_str:
+        start_date = today - timedelta(days=1)
+        end_date = start_date
+    elif "this week" in date_str:
+        start_date = today + relativedelta(weekday=MO(-1))
+        end_date = today + relativedelta(weekday=SU(1))
+    elif "next week" in date_str:
+        start_date = today + relativedelta(weekday=MO(1))
+        end_date = today + relativedelta(weekday=SU(2))
+    else:
+        # Default to today if not recognized
+        start_date = today
+        end_date = today
+        
+    # Convert date objects to datetime objects for the search range
+    start_datetime = datetime.combine(start_date, datetime.min.time())
+    end_datetime = datetime.combine(end_date, datetime.max.time())
+    
+    return start_datetime, end_datetime
 
 def handle_caldav_action(creds: dict, nlu_data: dict) -> str:
     """Handles CalDAV actions based on NLU intent and entities."""
@@ -26,9 +61,8 @@ def handle_caldav_action(creds: dict, nlu_data: dict) -> str:
             calendar = calendars[0]
 
             if intent == 'get_calendar_events':
-                # Default to today's events, but can be expanded with NLU entities for date ranges
-                start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                end_date = start_date + timedelta(days=1)
+                date_range_str = nlu_data.get('entities', {}).get('date_range', 'today')
+                start_date, end_date = parse_date_range(date_range_str)
                 
                 return _get_events_for_range(calendar, start_date, end_date)
 
@@ -51,9 +85,17 @@ def _get_events_for_range(calendar, start_date, end_date) -> str:
         events_found = calendar.date_search(start=start_date, end=end_date, expand=True)
         
         if not events_found:
-            return f"No events found for {start_date.strftime('%A, %B %d, %Y')}."
+            if start_date.date() == end_date.date():
+                return f"No events found for {start_date.strftime('%A, %B %d, %Y')}."
+            else:
+                return f"No events found from {start_date.strftime('%b %d')} to {end_date.strftime('%b %d')}."
 
-        response_lines = [f"Here are your events for {start_date.strftime('%A, %B %d')}:"]
+        # Adjust header based on date range
+        if start_date.date() == end_date.date():
+            header = f"Here are your events for {start_date.strftime('%A, %B %d')}:"
+        else:
+            header = f"Here are your events from {start_date.strftime('%b %d')} to {end_date.strftime('%b %d')}:"
+        response_lines = [header]
         
         # Sort events by start time
         sorted_events = sorted(events_found, key=lambda e: e.vobject_instance.vevent.dtstart.value)

@@ -4,4 +4,5 @@ webdavclient3>=3.14.6 # For Nextcloud server-side integration
 python-dotenv
 requests
 caldav
-youtube-transcript-api 
+youtube-transcript-api
+python-dateutil 

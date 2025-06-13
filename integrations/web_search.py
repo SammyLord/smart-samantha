@@ -5,10 +5,22 @@ import re
 
 DUCKDUCKGO_API_URL = "https://api.duckduckgo.com/"
 
-def search_web(query: str) -> str:
+def search_web(query: str, full_user_message: str = "") -> str:
     """Action for performing a web search."""
     if not query:
-        return "What would you like me to search for on the web?"
+        # If the NLU didn't find a specific query_term, fall back to the whole message.
+        # But first, remove common trigger phrases to get a cleaner query.
+        triggers = ["search for", "look up", "find", "what is", "who is", "tell me about", "search", "google"]
+        temp_query = full_user_message.lower()
+        for trigger in triggers:
+            if temp_query.startswith(trigger):
+                query = full_user_message[len(trigger):].strip()
+                break
+        if not query: # If still no query, use the original full message
+            query = full_user_message
+    
+    if not query: # If after all that, query is still empty
+        return "I can search the web for you, but please tell me what to look for."
 
     try:
         params = {
