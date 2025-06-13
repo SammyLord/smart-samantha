@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setCookie('caldavUser', caldavUserInput.value, 365);
             setCookie('caldavPass', caldavPassInput.value, 365);
             setCookie('numTheories', numTheoriesInput.value, 365);
-            alert('Settings saved! Note: Passwords are stored in cookies, which is not recommended for sensitive data in production environments.');
+            alert('Settings saved!');
             settingsModal.style.display = "none";
         };
     }
@@ -83,8 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // AutoSCI Button Logic
     if (autosciButton) {
         autosciButton.onclick = () => {
-            userInput.value = "activate autosci mode"; // Pre-fill input with command
-            sendMessage(); // Trigger the send message logic
+            userInput.value = "activate autosci mode";
+            sendMessage();
         };
     }
 
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recognition.onresult = (event) => {
             const speechResult = event.results[0][0].transcript;
             userInput.value = speechResult;
-            sendMessage(); // Optionally send message immediately after speech
+            sendMessage();
         };
 
         recognition.onspeechend = () => {
@@ -112,69 +112,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
         recognition.onerror = (event) => {
             console.error('Speech recognition error', event.error);
-            alert(`Error in speech recognition: ${event.error}`);
             micButton.textContent = '🎤';
             micButton.disabled = false;
         };
-    } else {
-        console.warn('Speech Recognition API not supported in this browser.');
-        micButton.disabled = true;
-        micButton.title = 'Speech input not supported by your browser.';
     }
 
     // Text-to-Speech (TTS)
     const synth = window.speechSynthesis;
-    let voices = [];
-
-    function populateVoiceList() {
-        if(typeof synth === 'undefined') {
-            return;
-        }
-        voices = synth.getVoices();
-        // You could add logic here to select a preferred voice
-    }
-    populateVoiceList();
-    if (typeof synth !== 'undefined' && synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = populateVoiceList;
-    }
-
     function speak(text) {
-        if (!synth || !text) {
-            return;
-        }
+        if (!synth || !text) return;
         const utterThis = new SpeechSynthesisUtterance(text);
         utterThis.onerror = (event) => {
             console.error('SpeechSynthesisUtterance.onerror', event);
         };
-        // Optional: select a voice
-        // const selectedVoice = voices.find(voice => voice.name === 'Google US English'); // Example
-        // if (selectedVoice) utterThis.voice = selectedVoice;
         synth.speak(utterThis);
     }
 
     sendButton.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
+    userInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
 
     micButton.addEventListener('click', () => {
         if (!recognition) return;
         if (micButton.textContent === '🎤') {
             try {
                 recognition.start();
-                micButton.textContent = '...'; // Indicate listening
+                micButton.textContent = '...';
                 micButton.disabled = true;
             } catch (e) {
-                console.error("Error starting recognition (already started?)", e);
-                 micButton.textContent = '🎤';
-                 micButton.disabled = false;
+                console.error("Error starting recognition", e);
+                micButton.textContent = '🎤';
+                micButton.disabled = false;
             }
         } else {
             recognition.stop();
-            micButton.textContent = '🎤';
-            micButton.disabled = false;
         }
     });
 
@@ -182,36 +152,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageText = userInput.value.trim();
         if (!messageText) return;
 
-        // Add user message to chat
         addMessageToChat('user', messageText);
         userInput.value = '';
 
-        // Show placeholder for AI response
         const aiResponsePlaceholder = addMessageToChat('assistant', 'Thinking...', 'system-message');
-        
-        // Hide or remove the autosci placeholder initially
-        const autosciResultPlaceholder = document.querySelector('.autosci-result-placeholder');
-        if (autosciResultPlaceholder) {
-            autosciResultPlaceholder.style.display = 'none';
-        }
 
-        // Get credentials and settings
-        const numTheories = parseInt(numTheoriesInput.value || '1');
-        const evolutionMode = evolutionModeToggle.checked;
         const nextcloudCreds = getNextcloudCredentials();
         const caldavCreds = getCaldavCredentials();
 
         fetch('/chat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: messageText,
                 nextcloud_creds: nextcloudCreds,
                 caldav_creds: caldavCreds,
-                use_evolution_mode: evolutionMode,
-                num_theories: numTheories
+                use_evolution_mode: evolutionModeToggle.checked,
+                num_theories: parseInt(numTheoriesInput.value || '1')
             })
         })
         .then(response => response.json())
@@ -219,21 +176,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.action === 'autosci_initiate_prompt') {
                 // Handle AutoSCI initiation
                 const taskId = data.task_id;
+                const numTheories = parseInt(numTheoriesInput.value || '1');
                 // Create a dedicated placeholder for this AutoSCI task
                 const autosciTaskPlaceholder = addMessageToChat('assistant', `AutoSCI discovery started (Task ID: ${taskId})...`, 'system-message');
                 pollAutosciStatus(taskId, autosciTaskPlaceholder, numTheories);
                 aiResponsePlaceholder.remove(); // Remove the general "Thinking..." placeholder
             } else {
-                // Handle regular chat responses
-                aiResponsePlaceholder.textContent = data.response;
-                aiResponsePlaceholder.classList.remove('system-message');
+                // Use the placeholder to show the final response
+                aiResponsePlaceholder.innerHTML = data.response; // Update content
+                aiResponsePlaceholder.parentElement.classList.remove('system-message'); // Update class on the wrapper
+                saveChatHistory(chatBox); // Save final state
                 speak(data.response);
             }
         })
         .catch(error => {
             console.error('Chat Error:', error);
-            aiResponsePlaceholder.textContent = 'Sorry, an error occurred.';
-            aiResponsePlaceholder.classList.add('error-message');
+            aiResponsePlaceholder.innerHTML = 'Sorry, an error occurred.';
+            aiResponsePlaceholder.parentElement.classList.add('error-message');
+            saveChatHistory(chatBox);
             speak('Sorry, an error occurred.');
         });
     }
@@ -245,69 +205,100 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(statusData => {
                     if (statusData.status === 'completed') {
                         clearInterval(pollInterval);
-                        placeholderElement.textContent = statusData.response;
-                        placeholderElement.classList.remove('system-message');
+                        placeholderElement.innerHTML = statusData.response;
+                        placeholderElement.parentElement.classList.remove('system-message');
+                        saveChatHistory(document.getElementById('chatBox'));
                         speak(statusData.response);
                     } else if (statusData.status === 'failed') {
                         clearInterval(pollInterval);
-                        placeholderElement.textContent = `AutoSCI Error: ${statusData.error}`;
-                        placeholderElement.classList.add('error-message');
-                        placeholderElement.classList.remove('system-message');
+                        placeholderElement.innerHTML = `AutoSCI Error: ${statusData.error}`;
+                        placeholderElement.parentElement.classList.add('error-message');
+                        saveChatHistory(document.getElementById('chatBox'));
                         speak(`AutoSCI Error: ${statusData.error}`);
                     } else if (statusData.status === 'running' && statusData.progress) {
-                        // More detailed progress update
                         const { completed, total } = statusData.progress;
-                        placeholderElement.textContent = `AutoSCI discovery in progress... (${completed}/${total} theories completed)`;
+                        placeholderElement.innerHTML = `AutoSCI discovery in progress... (${completed}/${total} theories completed)`;
                     } else {
-                        // Fallback progress update
-                        placeholderElement.textContent = `AutoSCI discovery in progress...`;
+                        placeholderElement.innerHTML = `AutoSCI discovery in progress...`;
                     }
                 })
                 .catch(error => {
                     clearInterval(pollInterval);
                     console.error('AutoSCI Status Check Error:', error);
-                    placeholderElement.textContent = 'Sorry, something went wrong while checking the AutoSCI discovery status.';
-                    placeholderElement.classList.add('error-message');
-                    placeholderElement.classList.remove('system-message');
+                    placeholderElement.innerHTML = 'Sorry, something went wrong while checking the AutoSCI discovery status.';
+                    placeholderElement.parentElement.classList.add('error-message');
+                    saveChatHistory(document.getElementById('chatBox'));
                     speak(placeholderElement.textContent);
                 });
         }, 3000); // Poll every 3 seconds
     }
-    
-    function addMessageToChat(role, content, className = '') {
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message', `${role}-message`);
-        if (className) {
-            messageElement.classList.add(className);
-        }
-        // Basic Markdown-to-HTML conversion
-        let formattedContent = content.replace(/\n/g, '<br>'); // Newlines to <br>
-        formattedContent = formattedContent.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); // **bold** to <b>
-        formattedContent = formattedContent.replace(/\*(.*?)\*/g, '<i>$1</i>');     // *italic* to <i>
-        
-        messageElement.innerHTML = formattedContent;
-        chatBox.appendChild(messageElement);
-        chatBox.scrollTop = chatBox.scrollHeight;
-        return messageElement;
-    }
 
     function getNextcloudCredentials() {
-        const url = getCookie('nextcloudUrl');
-        const user = getCookie('nextcloudUser');
-        const pass = getCookie('nextcloudPass');
-        if (url && user && pass) {
-            return { url, user, password: pass };
-        }
-        return null;
+        return {
+            url: nextcloudUrlInput.value.trim(),
+            user: nextcloudUserInput.value.trim(),
+            password: nextcloudPassInput.value.trim()
+        };
     }
 
     function getCaldavCredentials() {
-        const url = getCookie('caldavUrl');
-        const user = getCookie('caldavUser');
-        const pass = getCookie('caldavPass');
-        if (url && user && pass) {
-            return { url, user, password: pass };
-        }
-        return null;
+        return {
+            url: caldavUrlInput.value.trim(),
+            user: caldavUserInput.value.trim(),
+            password: caldavPassInput.value.trim()
+        };
     }
-}); 
+
+    // Load history at the end of DOMContentLoaded
+    loadChatHistory();
+});
+
+function saveChatHistory(chatBox) {
+    const messages = [];
+    chatBox.childNodes.forEach(node => {
+        if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('chat-message')) {
+            messages.push({
+                role: node.dataset.role,
+                content: node.querySelector('.message-content').innerHTML,
+                className: node.className.replace('chat-message', '').trim()
+            });
+        }
+    });
+    localStorage.setItem('chatHistory', JSON.stringify(messages));
+}
+
+function loadChatHistory() {
+    const chatBox = document.getElementById('chatBox');
+    const messages = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+    messages.forEach(msg => {
+        addMessageToChat(msg.role, msg.content, msg.className, false); // Add without re-saving
+    });
+}
+
+function addMessageToChat(role, content, className = '', save = true) {
+    const chatBox = document.getElementById('chatBox');
+    const messageWrapper = document.createElement('div');
+    messageWrapper.className = `chat-message ${role}-message ${className}`.trim();
+    messageWrapper.dataset.role = role;
+
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    
+    // If the content is from user input, escape it to prevent HTML injection
+    // Otherwise, for assistant messages or loaded history, we assume it's safe HTML
+    if (role === 'user' && save === true) {
+         messageContent.textContent = content;
+    } else {
+         messageContent.innerHTML = content;
+    }
+
+    messageWrapper.appendChild(messageContent);
+    chatBox.appendChild(messageWrapper);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    if (save) {
+        saveChatHistory(chatBox);
+    }
+
+    return messageContent; // Return for updates
+}
