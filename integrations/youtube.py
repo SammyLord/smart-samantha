@@ -1,5 +1,6 @@
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+from xml.etree.ElementTree import ParseError
 from llm import get_ollama_response, GENERATOR_MODEL_NAME
 
 def get_transcript(video_id: str) -> (str, str):
@@ -12,6 +13,8 @@ def get_transcript(video_id: str) -> (str, str):
         return None, "Transcripts are disabled for this video."
     except NoTranscriptFound:
         return None, "No transcript could be found for this video in a supported language."
+    except ParseError:
+        return None, "Failed to parse the video data from YouTube. This can happen with very new or unusual videos."
     except Exception as e:
         print(f"YouTube Transcript Error: {e}")
         return None, f"An unexpected error occurred while fetching the transcript: {e}"
