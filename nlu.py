@@ -4,7 +4,7 @@ import re
 POSSIBLE_INTENTS = [
     "get_weather", "search_web", "get_bible_verse", 
     "nextcloud_list_files", "nextcloud_query", 
-    "autosci_mode", "casual_chat"
+    "autosci_mode", "get_calendar_events", "casual_chat"
 ]
 
 def process_user_intent(user_message: str) -> dict:
@@ -23,6 +23,7 @@ Respond with ONLY the chosen intent name. For example:
 - If the user asks to list or show files on Nextcloud (optionally mentioning a path), respond with "nextcloud_list_files".
 - For other Nextcloud related queries that are not listing files, respond with "nextcloud_query".
 - If the user explicitly asks for 'autosci mode' or 'make a scientific discovery', respond with "autosci_mode".
+- If the user asks about their schedule, calendar, appointments, or what they have on a certain day, respond with "get_calendar_events".
 '''
     
     raw_intent_response = get_ollama_response(intent_prompt).strip().lower()
@@ -118,6 +119,12 @@ Respond with ONLY the chosen intent name. For example:
 
     elif identified_intent == "autosci_mode":
         # No specific entities needed for this mode, it uses a hardcoded prompt.
+        pass
+
+    elif identified_intent == "get_calendar_events":
+        # For now, we don't extract specific dates. The backend will default to today.
+        # This can be expanded later to parse dates from the message.
+        # e.g., "what's on my calendar tomorrow?" -> entities['date'] = 'tomorrow'
         pass
 
     return {"intent": identified_intent, "entities": entities} 

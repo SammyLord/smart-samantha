@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from llm import get_ollama_response, GENERATOR_MODEL_NAME
 from nlu import process_user_intent
-from integrations import weather, web_search, bible, nextcloud # Import integration modules
+from integrations import weather, web_search, bible, nextcloud, caldav_calendar # Import integration modules
 from integrations.autosci import trigger_autosci_discovery # Import the new autosci function
 from problem_solver import solve_with_multi_step_refinement # Updated import
 from verifylib.python.verify import verify_license
@@ -75,6 +75,7 @@ def chat():
     entities = nlu_result.get('entities', {})
     
     nextcloud_creds = request.json.get('nextcloud_creds')
+    caldav_creds = request.json.get('caldav_creds')
     use_evolution = request.json.get('use_evolution_mode', True)
     num_theories = min(int(request.json.get('num_theories', 1)), MAX_PARALLEL_THEORIES)
     
@@ -105,6 +106,11 @@ def chat():
         ai_response = web_search.search_web(query=entities.get('query_term'))
     elif intent == "get_bible_verse":
         ai_response = bible.get_random_bible_verse()
+    elif intent == "get_calendar_events":
+        if not caldav_creds or not all(k in caldav_creds for k in ['url', 'user', 'password']):
+            ai_response = "It looks like you want to check your calendar, but your CalDAV credentials aren't set. Please configure them in the settings (⚙️ icon)."
+        else:
+            ai_response = caldav_calendar.handle_caldav_action(creds=caldav_creds, nlu_data=nlu_result)
     elif intent == "nextcloud_list_files" or intent == "nextcloud_query":
         if not nextcloud_creds or not all(k in nextcloud_creds for k in ['url', 'user', 'password']):
             ai_response = "It looks like you want to interact with Nextcloud, but your credentials aren't set or are incomplete. Please configure them in the settings (⚙️ icon)."
@@ -184,7 +190,7 @@ def check_autosci_status(task_id):
 if __name__ == '__main__':
     # Ensure graceful shutdown of the executor if the app is stopped.
     try:
-        app.run(debug=True, use_reloader=False) # use_reloader=False is important with ThreadPoolExecutor in debug mode
+        app.run(debug=True, use_reloader=False, port=4556) # use_reloader=False is important with ThreadPoolExecutor in debug mode
     except KeyboardInterrupt:
         print("Shutting down executor...")
         executor.shutdown(wait=True)

@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextcloudUrlInput = document.getElementById('nextcloudUrl');
     const nextcloudUserInput = document.getElementById('nextcloudUser');
     const nextcloudPassInput = document.getElementById('nextcloudPass');
+    const caldavUrlInput = document.getElementById('caldavUrl');
+    const caldavUserInput = document.getElementById('caldavUser');
+    const caldavPassInput = document.getElementById('caldavPass');
     const numTheoriesInput = document.getElementById('numTheories');
     const autosciButton = document.getElementById('autosciButton');
     const evolutionModeToggle = document.getElementById('evolutionModeToggle');
@@ -56,22 +59,24 @@ document.addEventListener('DOMContentLoaded', () => {
             setCookie('nextcloudUrl', nextcloudUrlInput.value, 365);
             setCookie('nextcloudUser', nextcloudUserInput.value, 365);
             setCookie('nextcloudPass', nextcloudPassInput.value, 365);
+            setCookie('caldavUrl', caldavUrlInput.value, 365);
+            setCookie('caldavUser', caldavUserInput.value, 365);
+            setCookie('caldavPass', caldavPassInput.value, 365);
             setCookie('numTheories', numTheoriesInput.value, 365);
-            alert('Settings saved! Note: Password is stored in a cookie, which is not recommended for sensitive data in production environments.');
+            alert('Settings saved! Note: Passwords are stored in cookies, which is not recommended for sensitive data in production environments.');
             settingsModal.style.display = "none";
         };
     }
 
     // Load settings from cookies on page load
     function loadSettings() {
-        const url = getCookie('nextcloudUrl');
-        const user = getCookie('nextcloudUser');
-        const pass = getCookie('nextcloudPass');
-        const numTheories = getCookie('numTheories');
-        if (nextcloudUrlInput && url) nextcloudUrlInput.value = url;
-        if (nextcloudUserInput && user) nextcloudUserInput.value = user;
-        if (nextcloudPassInput && pass) nextcloudPassInput.value = pass;
-        if (numTheoriesInput && numTheories) numTheoriesInput.value = numTheories;
+        nextcloudUrlInput.value = getCookie('nextcloudUrl') || '';
+        nextcloudUserInput.value = getCookie('nextcloudUser') || '';
+        nextcloudPassInput.value = getCookie('nextcloudPass') || '';
+        caldavUrlInput.value = getCookie('caldavUrl') || '';
+        caldavUserInput.value = getCookie('caldavUser') || '';
+        caldavPassInput.value = getCookie('caldavPass') || '';
+        numTheoriesInput.value = getCookie('numTheories') || '1';
     }
     loadSettings();
 
@@ -183,10 +188,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show placeholder for AI response
         const aiResponsePlaceholder = addMessageToChat('assistant', 'Thinking...', 'system-message');
-        const autosciResultPlaceholder = addMessageToChat('assistant', 'Starting AutoSCI discovery process...', 'system-message');
+        
+        // Hide or remove the autosci placeholder initially
+        const autosciResultPlaceholder = document.querySelector('.autosci-result-placeholder');
+        if (autosciResultPlaceholder) {
+            autosciResultPlaceholder.style.display = 'none';
+        }
 
-        // Get number of theories from settings
-        const numTheories = parseInt(getCookie('numTheories') || '1');
+        // Get credentials and settings
+        const numTheories = parseInt(numTheoriesInput.value || '1');
+        const evolutionMode = evolutionModeToggle.checked;
+        const nextcloudCreds = getNextcloudCredentials();
+        const caldavCreds = getCaldavCredentials();
 
         fetch('/chat', {
             method: 'POST',
@@ -195,100 +208,105 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             body: JSON.stringify({
                 message: messageText,
-                nextcloud_creds: getNextcloudCredentials(),
-                use_evolution_mode: true,
+                nextcloud_creds: nextcloudCreds,
+                caldav_creds: caldavCreds,
+                use_evolution_mode: evolutionMode,
                 num_theories: numTheories
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.action === 'autosci_initiate_prompt') {
-                // Start polling for AutoSCI task status
+                // Handle AutoSCI initiation
                 const taskId = data.task_id;
-                const pollInterval = setInterval(() => {
-                    fetch(`/check_autosci_status/${taskId}`)
-                        .then(response => response.json())
-                        .then(statusData => {
-                            if (statusData.status === 'completed') {
-                                clearInterval(pollInterval);
-                                autosciResultPlaceholder.classList.remove('system-message');
-                                autosciResultPlaceholder.textContent = statusData.response;
-                                speak(statusData.response);
-                            } else if (statusData.status === 'failed') {
-                                clearInterval(pollInterval);
-                                autosciResultPlaceholder.classList.remove('system-message');
-                                autosciResultPlaceholder.classList.add('error-message');
-                                autosciResultPlaceholder.textContent = `AutoSCI Error: ${statusData.error}`;
-                                speak(`AutoSCI Error: ${statusData.error}`);
-                            } else {
-                                // Update status message to show progress
-                                const theories = autosci_tasks[taskId]?.theories || [];
-                                const completed = theories.length;
-                                const total = autosci_tasks[taskId]?.total_theories || numTheories;
-                                autosciResultPlaceholder.textContent = `AutoSCI discovery in progress... (${completed}/${total} theories completed)`;
-                            }
-                        })
-                        .catch(error => {
-                            clearInterval(pollInterval);
-                            console.error('AutoSCI Status Check Error:', error);
-                            autosciResultPlaceholder.classList.remove('system-message');
-                            autosciResultPlaceholder.classList.add('error-message');
-                            autosciResultPlaceholder.textContent = 'Sorry, something went wrong while checking the AutoSCI discovery status.';
-                            speak(autosciResultPlaceholder.textContent);
-                        });
-                }, 2000); // Poll every 2 seconds
-
-                // Remove the initial AI response placeholder since we're handling AutoSCI
-                aiResponsePlaceholder.remove();
+                // Create a dedicated placeholder for this AutoSCI task
+                const autosciTaskPlaceholder = addMessageToChat('assistant', `AutoSCI discovery started (Task ID: ${taskId})...`, 'system-message');
+                pollAutosciStatus(taskId, autosciTaskPlaceholder, numTheories);
+                aiResponsePlaceholder.remove(); // Remove the general "Thinking..." placeholder
             } else {
-                // Handle regular responses
+                // Handle regular chat responses
                 aiResponsePlaceholder.textContent = data.response;
                 aiResponsePlaceholder.classList.remove('system-message');
                 speak(data.response);
-                // Remove the AutoSCI placeholder since we're not using it
-                autosciResultPlaceholder.remove();
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            aiResponsePlaceholder.classList.remove('system-message');
+            console.error('Chat Error:', error);
+            aiResponsePlaceholder.textContent = 'Sorry, an error occurred.';
             aiResponsePlaceholder.classList.add('error-message');
-            aiResponsePlaceholder.textContent = 'Sorry, something went wrong while processing your message.';
-            speak(aiResponsePlaceholder.textContent);
-            // Remove the AutoSCI placeholder since we're not using it
-            autosciResultPlaceholder.remove();
+            speak('Sorry, an error occurred.');
         });
     }
 
-    function appendMessage(text, className) {
-        const messageDiv = document.createElement('div');
-        // Ensure className is treated as potentially multiple classes
-        const classes = className ? className.split(' ').filter(c => c) : [];
-        messageDiv.classList.add('message', ...classes);
-        messageDiv.textContent = text;
-        chatBox.appendChild(messageDiv);
-        chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
-        return messageDiv; // Return the created element
+    function pollAutosciStatus(taskId, placeholderElement, totalTheories) {
+        const pollInterval = setInterval(() => {
+            fetch(`/check_autosci_status/${taskId}`)
+                .then(response => response.json())
+                .then(statusData => {
+                    if (statusData.status === 'completed') {
+                        clearInterval(pollInterval);
+                        placeholderElement.textContent = statusData.response;
+                        placeholderElement.classList.remove('system-message');
+                        speak(statusData.response);
+                    } else if (statusData.status === 'failed') {
+                        clearInterval(pollInterval);
+                        placeholderElement.textContent = `AutoSCI Error: ${statusData.error}`;
+                        placeholderElement.classList.add('error-message');
+                        placeholderElement.classList.remove('system-message');
+                        speak(`AutoSCI Error: ${statusData.error}`);
+                    } else if (statusData.status === 'running' && statusData.progress) {
+                        // More detailed progress update
+                        const { completed, total } = statusData.progress;
+                        placeholderElement.textContent = `AutoSCI discovery in progress... (${completed}/${total} theories completed)`;
+                    } else {
+                        // Fallback progress update
+                        placeholderElement.textContent = `AutoSCI discovery in progress...`;
+                    }
+                })
+                .catch(error => {
+                    clearInterval(pollInterval);
+                    console.error('AutoSCI Status Check Error:', error);
+                    placeholderElement.textContent = 'Sorry, something went wrong while checking the AutoSCI discovery status.';
+                    placeholderElement.classList.add('error-message');
+                    placeholderElement.classList.remove('system-message');
+                    speak(placeholderElement.textContent);
+                });
+        }, 3000); // Poll every 3 seconds
     }
-
-    function addMessageToChat(role, content, className) {
-        const messageDiv = appendMessage(content, className);
-        messageDiv.classList.add('message', role);
-        chatBox.appendChild(messageDiv);
-        chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
-        return messageDiv;
+    
+    function addMessageToChat(role, content, className = '') {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', `${role}-message`);
+        if (className) {
+            messageElement.classList.add(className);
+        }
+        // Basic Markdown-to-HTML conversion
+        let formattedContent = content.replace(/\n/g, '<br>'); // Newlines to <br>
+        formattedContent = formattedContent.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); // **bold** to <b>
+        formattedContent = formattedContent.replace(/\*(.*?)\*/g, '<i>$1</i>');     // *italic* to <i>
+        
+        messageElement.innerHTML = formattedContent;
+        chatBox.appendChild(messageElement);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return messageElement;
     }
 
     function getNextcloudCredentials() {
-        const ncUrl = getCookie('nextcloudUrl');
-        const ncUser = getCookie('nextcloudUser');
-        const ncPass = getCookie('nextcloudPass');
-        if (ncUrl && ncUser && ncPass) {
-            return {
-                url: ncUrl,
-                user: ncUser,
-                password: ncPass
-            };
+        const url = getCookie('nextcloudUrl');
+        const user = getCookie('nextcloudUser');
+        const pass = getCookie('nextcloudPass');
+        if (url && user && pass) {
+            return { url, user, password: pass };
+        }
+        return null;
+    }
+
+    function getCaldavCredentials() {
+        const url = getCookie('caldavUrl');
+        const user = getCookie('caldavUser');
+        const pass = getCookie('caldavPass');
+        if (url && user && pass) {
+            return { url, user, password: pass };
         }
         return null;
     }
