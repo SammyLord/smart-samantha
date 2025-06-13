@@ -28,7 +28,7 @@ Current capabilities include:
 -   **Dual LLM Powered**: 
     -   Generator Model: `sparksammy/tinysam-l3.2-v2` (for brainstorming and prototyping).
     -   Thinker Model: `sparksammy/samantha-thinker-v2` (for evaluation, selection, refinement, and creative tasks).
-    -   Both accessed via an Ollama-compatible API endpoint (`https://ollama-api.nodemixaholic.com/v1`).
+    -   Both accessed via an Ollama-compatible API endpoint (`censored`).
 -   **NLU Layer**: Processes user input to determine intent (e.g., get weather, search web, list Nextcloud files, AutoSCI mode) and extracts relevant entities.
 -   **Multi-Step Refinement for General Queries**: Provides more thoughtful and developed answers to complex or open-ended questions.
 -   **Creative "AutoSCI" Mode**: 
