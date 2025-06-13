@@ -56,6 +56,12 @@ def handle_nextcloud_action(creds: dict, nlu_data: dict) -> str:
 
         return _list_nextcloud_path(client, path_to_list, creds['user'])
     
+    elif intent == "nextcloud_read_file":
+        file_path = entities.get('path', '').strip()
+        if not file_path:
+            return "Please specify the path to the file you want me to read."
+        return _read_nextcloud_file(client, file_path, creds['user'])
+
     elif intent == "nextcloud_query": # Generic query
         # For now, just confirm we received it. Later can add more actions.
         task_details = entities.get('task_details', 'your request')
@@ -118,3 +124,29 @@ def _list_nextcloud_path(client: Client, path: str, username: str) -> str:
     except Exception as e:
         print(f"Nextcloud: Unexpected error listing '{path if path else '/'}' for user {username}: {e}")
         return f"An unexpected error occurred with Nextcloud: {e}"
+
+def _read_nextcloud_file(client: Client, path: str, username:str) -> str:
+    """Helper function to read the content of a file."""
+    try:
+        # The path should be relative to the user's DAV files root.
+        # e.g., 'documents/notes.txt'
+        remote_path = path.lstrip('/')
+        
+        # Check if the path exists and is a file
+        if not client.check(remote_path) or client.is_dir(remote_path):
+            return f"Error: The path '{path}' is not a file or does not exist."
+
+        # Download the file content into memory
+        # We can use resource().read() for this
+        file_content = client.resource(remote_path).read().decode('utf-8')
+        
+        return f"Content of '{path}':\n\n{file_content}"
+
+    except Exception as e:
+        print(f"Nextcloud: WebDAV error reading file '{path}' for user {username}: {e}")
+        if hasattr(e, 'response') and e.response:
+            if e.response.status_code == 404:
+                return f"Error: File not found at '{path}'."
+            elif e.response.status_code == 401:
+                return "Nextcloud: Authentication failed. Please check your credentials."
+        return f"Sorry, an error occurred while reading the file '{path}' from Nextcloud."

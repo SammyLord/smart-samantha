@@ -51,6 +51,19 @@ INTENT_DEFINITIONS = {
             "Show me the contents of the /Photos/2024 folder on my cloud."
         ]
     },
+    "nextcloud_read_file": {
+        "description": "User wants to read the content of a specific file from their Nextcloud account.",
+        "entities": {
+            "path": {
+                "type": "string",
+                "description": "The full path to the file to be read, e.g., '/Documents/report.txt'."
+            }
+        },
+        "examples": [
+            "Read the file /notes.txt from my Nextcloud.",
+            "Can you show me what's in 'Documents/Project Plan.md' on my cloud?"
+        ]
+    },
     "nextcloud_query": {
         "description": "User has a general query or request for Nextcloud that isn't listing files.",
         "entities": {
