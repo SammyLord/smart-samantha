@@ -13,8 +13,6 @@ def get_transcript(video_id: str) -> (str, str):
         return None, "Transcripts are disabled for this video."
     except NoTranscriptFound:
         return None, "No transcript could be found for this video in a supported language."
-    except ParseError:
-        return None, "Failed to parse the video data from YouTube. This can happen with very new or unusual videos."
     except Exception as e:
         print(f"YouTube Transcript Error: {e}")
         return None, f"An unexpected error occurred while fetching the transcript: {e}"

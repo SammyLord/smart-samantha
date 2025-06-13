@@ -181,26 +181,10 @@ def process_user_intent(user_message: str) -> dict:
             return {"intent": "casual_chat", "entities": {}}
             
         # --- Post-processing for specific, structured entities ---
-        # For YouTube, the LLM is good at identifying intent, but regex is more reliable for the ID.
-        if intent == "query_youtube_video":
-            yt_regex = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
-            match = re.search(yt_regex, user_message)
-            if match and match.group(1):
-                # Override the LLM's video_id with the more reliable regex extraction.
-                entities['video_id'] = match.group(1)
-                
-                # Also, override the question to be whatever is NOT the URL.
-                question_part = user_message.split(match.group(0))[0].strip()
-                if question_part:
-                    entities['question'] = question_part
-                elif 'question' not in entities or not entities['question']:
-                    # If LLM didn't find a question and there's nothing before the URL
-                    entities['question'] = "Summarize this video."
-            else:
-                # If regex fails, we trust the LLM's (likely null) output, which the app will handle.
-                pass
+        # We will handle specific extraction for youtube directly in the app route
+        # to ensure it's robust, so no special handling is needed here.
 
-        print(f"NLU Result (post-processed): Intent='{intent}', Entities={entities}")
+        print(f"NLU Result: Intent='{intent}', Entities={entities}")
         return {"intent": intent, "entities": entities}
 
     except json.JSONDecodeError as e:

@@ -9,6 +9,7 @@ from verifylib.python.verify import verify_license
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 import time # For potential cleanup logic if desired, not strictly used in core logic yet
+import re
 
 # Verify license
 verified, message = verify_license(pow_list_url="https://github.com/SammyLord/drmixaholic-list/raw/refs/heads/main/pow_list.txt")
@@ -112,14 +113,20 @@ def chat():
     elif intent == "get_bible_verse":
         ai_response = bible.get_random_bible_verse()
     elif intent == "query_youtube_video":
-        video_id = entities.get('video_id')
-        # If a question isn't explicitly found by the NLU, default to a general summary.
-        question = entities.get('question', "Summarize this video.")
+        # NLU identifies the intent, but we use regex here for robust extraction of the URL.
+        yt_regex = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
+        match = re.search(yt_regex, user_message)
         
-        if video_id:
+        if match and match.group(1):
+            video_id = match.group(1)
+            # The question is whatever is not the URL.
+            question = user_message.split(match.group(0))[0].strip()
+            if not question:
+                question = "Summarize this video." # Default action
+            
             ai_response = youtube.handle_youtube_query(video_id=video_id, question=question)
         else:
-            ai_response = "I see you want to ask about a YouTube video, but I couldn't find a valid YouTube link in your message."
+            ai_response = "I understood you want to ask about a YouTube video, but I couldn't find a valid YouTube link in your message."
     elif intent == "get_calendar_events":
         if not caldav_creds or not all(k in caldav_creds for k in ['url', 'user', 'password']):
             ai_response = "It looks like you want to check your calendar, but your CalDAV credentials aren't set. Please configure them in the settings (⚙️ icon)."
