@@ -18,8 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const numTheoriesInput = document.getElementById('numTheories');
     const autosciButton = document.getElementById('autosciButton');
     const evolutionModeToggle = document.getElementById('evolutionModeToggle');
-
-    let sessionId = null;
+    let messagesHistory = [];
 
     // Cookie helper functions
     function setCookie(name, value, days) {
@@ -42,18 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return null;
     }
-
-    // Generate a unique session ID for the user
-    function getOrCreateSessionId() {
-        let sid = getCookie('session_id');
-        if (!sid) {
-            sid = crypto.randomUUID();
-            setCookie('session_id', sid, 1); // Store session ID for 1 day
-        }
-        return sid;
-    }
-
-    sessionId = getOrCreateSessionId();
 
     // Settings Modal Logic
     if (settingsButton) {
@@ -163,7 +150,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function sendMessage() {
-        const messageText = userInput.value.trim();
+        const messageText = ```<History for context>
+        ${JSON.stringify(messagesHistory)}
+        </History for context>
+        <User asks currently> ${userInput.value.trim()}</User asks currently>
+        ```
         if (!messageText) return;
 
         addMessageToChat('user', messageText);
@@ -178,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                session_id: sessionId,
                 message: messageText,
                 nextcloud_creds: nextcloudCreds,
                 caldav_creds: caldavCreds,
@@ -280,11 +270,13 @@ function saveChatHistory(chatBox) {
         }
     });
     localStorage.setItem('chatHistory', JSON.stringify(messages));
+    messagesHistory = messages;
 }
 
 function loadChatHistory() {
     const chatBox = document.getElementById('chatBox');
     const messages = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+    messagesHistory = messages;
     messages.forEach(msg => {
         addMessageToChat(msg.role, msg.content, msg.className, false); // Add without re-saving
     });

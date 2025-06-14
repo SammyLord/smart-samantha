@@ -125,10 +125,10 @@ INTENT_DEFINITIONS = {
     }
 }
 
-def get_intent_and_entities(user_message: str, mcp_tools=None, conversation_history: list = None) -> tuple[str, dict]:
+def get_intent_and_entities(user_message: str, mcp_tools=None) -> tuple[str, dict]:
     """
     Processes the user's message to determine intent and extract entities using an LLM,
-    including dynamically provided MCP tools and conversation history for context.
+    including dynamically provided MCP tools.
     """
     if mcp_tools is None:
         mcp_tools = []
@@ -139,15 +139,6 @@ def get_intent_and_entities(user_message: str, mcp_tools=None, conversation_hist
     if mcp_tools:
         mcp_tool_list = "\n".join([f"- {tool['name']}: {tool['description']}" for tool in mcp_tools])
         intent_list += "\n" + mcp_tool_list
-
-    history_str = ""
-    if conversation_history:
-        # Format the history for the prompt
-        formatted_history = "\n".join([f"- {msg['role']}: {msg['content']}" for msg in conversation_history])
-        history_str = f"""
-For context, here is the recent conversation history:
-{formatted_history}
-"""
 
     json_format_description = """
 Respond with a single JSON object in the following format:
@@ -169,11 +160,10 @@ Respond with a single JSON object in the following format:
 
     prompt = f"""
 You are a highly intelligent Natural Language Understanding (NLU) engine. Your task is to analyze the user's message and determine their intent and any associated entities.
-Consider the conversation history for context, as the user might be asking a follow-up question.
 
 Here are the possible intents:
 {intent_list}
-{history_str}
+
 {json_format_description}
 
 ---

@@ -37,9 +37,7 @@ mcp_client = MCPClient()
 mcp_server_process = None
 
 # In-memory storage for conversation history
-# The key is a session ID, and the value is a list of messages.
 conversation_history = {}
-MAX_HISTORY_LENGTH = 10 # Keep the last 5 pairs of user/assistant messages
 
 def run_autosci_in_background(task_id: str, theory_index: int = 0):
     """Wrapper function to run trigger_autosci_discovery in a background thread and store its result."""
@@ -80,20 +78,10 @@ def index():
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    data = request.json
-    user_message = data.get('message')
-    session_id = data.get('session_id')
-
+    user_message = request.json.get('message')
     if not user_message:
         return jsonify({'error': 'No message provided'}), 400
     
-    # Ensure a session history list exists.
-    if session_id not in conversation_history:
-        conversation_history[session_id] = []
-    
-    # Get the current session's history
-    session_hist = conversation_history[session_id]
-
     # Get the list of tools from the connected MCP server
     mcp_tools_list = []
     if mcp_client.session:
@@ -104,17 +92,16 @@ def chat():
             print(f"Could not fetch MCP tools: {e}")
 
     # Pass both standard and MCP tools to the NLU
-    intent, entities = get_intent_and_entities(user_message, mcp_tools=mcp_tools_list, conversation_history=session_hist)
+    intent, entities = get_intent_and_entities(user_message, mcp_tools=mcp_tools_list)
 
     print(f"Intent: {intent}, Entities: {entities}")
 
-    nextcloud_creds = data.get('nextcloud_creds')
-    caldav_creds = data.get('caldav_creds')
-    use_evolution = data.get('use_evolution_mode', False)
-    num_theories = min(int(data.get('num_theories', 1)), MAX_PARALLEL_THEORIES)
+    nextcloud_creds = request.json.get('nextcloud_creds')
+    caldav_creds = request.json.get('caldav_creds')
+    use_evolution = request.json.get('use_evolution_mode', False)
+    num_theories = min(int(request.json.get('num_theories', 1)), MAX_PARALLEL_THEORIES)
     
     ai_response = ""
-    ai_response_for_history = None
 
     if intent == "autosci_mode":
         # Generate a unique task ID for this AutoSCI request
@@ -158,11 +145,7 @@ def chat():
             if not question:
                 question = "Summarize this video." # Default action
             
-            answer, transcript = youtube.handle_youtube_query(video_id=video_id, question=question)
-            ai_response = answer
-            if transcript:
-                # For the history, we save the answer PLUS the context that produced it.
-                ai_response_for_history = f"{answer}\n\n[CONTEXT - YouTube Transcript]:\n{transcript}"
+            ai_response = youtube.handle_youtube_query(video_id=video_id, question=question)
         else:
             ai_response = "I understood you want to ask about a YouTube video, but I couldn't find a valid YouTube link in your message."
     elif intent == "caldav_query":
@@ -192,15 +175,7 @@ def chat():
         else:
             log_intent_str = f"intent: '{intent}'" if intent else "fallback/general query"
             print(f"App.py: {log_intent_str}. Using direct generator model (evolution OFF) for: {user_message}")
-            ai_response = get_ollama_response(user_message, model_name=GENERATOR_MODEL_NAME, history=session_hist)
-
-    # Add user message and AI response to history
-    session_hist.append({"role": "user", "content": user_message})
-    session_hist.append({"role": "assistant", "content": ai_response_for_history or ai_response})
-    
-    # Trim history to keep it from growing indefinitely
-    if len(session_hist) > MAX_HISTORY_LENGTH * 2:
-        conversation_history[session_id] = session_hist[-(MAX_HISTORY_LENGTH * 2):]
+            ai_response = get_ollama_response(user_message, model_name=GENERATOR_MODEL_NAME)
 
     return jsonify({'response': ai_response})
 
@@ -316,6 +291,23 @@ def mcp_call_tool():
         return jsonify({'result': result})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/autosci_status/<task_id>')
+def autosci_status(task_id):
+    task_info = autosci_tasks.get(task_id)
+    if not task_info:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    response_data = {
+        'task_id': task_id,
+        'status': task_info['status']
+    }
+    if task_info['status'] == 'completed':
+        response_data['result'] = task_info['result']
+    elif task_info['status'] == 'failed':
+        response_data['error'] = task_info['error']
+    
+    return jsonify(response_data)
 
 if __name__ == '__main__':
     # Ensure graceful shutdown of the executor if the app is stopped.
