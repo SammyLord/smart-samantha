@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const autosciButton = document.getElementById('autosciButton');
     const evolutionModeToggle = document.getElementById('evolutionModeToggle');
 
+    let sessionId = null;
+
     // Cookie helper functions
     function setCookie(name, value, days) {
         let expires = "";
@@ -40,6 +42,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return null;
     }
+
+    // Generate a unique session ID for the user
+    function getOrCreateSessionId() {
+        let sid = getCookie('session_id');
+        if (!sid) {
+            sid = crypto.randomUUID();
+            setCookie('session_id', sid, 1); // Store session ID for 1 day
+        }
+        return sid;
+    }
+
+    sessionId = getOrCreateSessionId();
 
     // Settings Modal Logic
     if (settingsButton) {
@@ -164,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                session_id: sessionId,
                 message: messageText,
                 nextcloud_creds: nextcloudCreds,
                 caldav_creds: caldavCreds,

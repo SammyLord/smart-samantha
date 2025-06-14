@@ -13,15 +13,22 @@ GENERATOR_MODEL_NAME = os.getenv("GEN_MODEL")
 # Advanced model for critical thinking, evaluation, and complex tasks
 THINKER_MODEL_NAME = os.getenv("THINK_MODEL")
 
-def get_ollama_response(prompt: str, model_name: str = GENERATOR_MODEL_NAME) -> str:
-    """Gets a response from the Ollama API, allowing model selection."""
+def get_ollama_response(prompt: str, model_name: str = GENERATOR_MODEL_NAME, history: list = None) -> str:
+    """
+    Gets a response from the Ollama API, allowing model selection and conversation history.
+    """
+    if history:
+        messages = history + [{"role": "user", "content": prompt}]
+    else:
+        messages = [{"role": "user", "content": prompt}]
+
     response = None # Initialize response to None to handle cases where the request itself fails early
     try:
         response = requests.post(
             f"{OLLAMA_API_URL}/chat/completions",
             json={
                 "model": model_name,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
                 "stream": False, 
             },
             headers={"Content-Type": "application/json"}
