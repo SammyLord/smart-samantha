@@ -98,7 +98,7 @@ def chat():
 
     nextcloud_creds = request.json.get('nextcloud_creds')
     caldav_creds = request.json.get('caldav_creds')
-    use_evolution = request.json.get('use_evolution_mode', True)
+    use_evolution = request.json.get('use_evolution_mode', False)
     num_theories = min(int(request.json.get('num_theories', 1)), MAX_PARALLEL_THEORIES)
     
     ai_response = ""
