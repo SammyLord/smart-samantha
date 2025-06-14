@@ -150,17 +150,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function sendMessage() {
-        const messageText = ```<History for context>
+        const userMessage = userInput.value.trim();
+        if (!userMessage) return;
+
+        // History sent to server should not include the current message
+        const messageText = `<History for context>
         ${JSON.stringify(messagesHistory)}
         </History for context>
-        <User asks currently> ${userInput.value.trim()}</User asks currently>
-        ```
-        if (!messageText) return;
+        <User asks currently> ${userMessage}</User asks currently>
+        `;
 
-        addMessageToChat('user', messageText);
+        // Add user message to UI and history
+        addMessageToChat('user', userMessage);
         userInput.value = '';
 
-        const aiResponsePlaceholder = addMessageToChat('assistant', 'Thinking...', 'system-message');
+        const aiResponsePlaceholder = addMessageToChat('assistant', 'Thinking...', 'system-message', false); // Don't save placeholder to history
 
         const nextcloudCreds = getNextcloudCredentials();
         const caldavCreds = getCaldavCredentials();
@@ -183,14 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const taskId = data.task_id;
                 const numTheories = parseInt(numTheoriesInput.value || '1');
                 // Create a dedicated placeholder for this AutoSCI task
-                const autosciTaskPlaceholder = addMessageToChat('assistant', `AutoSCI discovery started (Task ID: ${taskId})...`, 'system-message');
+                const autosciTaskPlaceholder = addMessageToChat('assistant', `AutoSCI discovery started (Task ID: ${taskId})...`, 'system-message', false);
                 pollAutosciStatus(taskId, autosciTaskPlaceholder, numTheories);
-                aiResponsePlaceholder.remove(); // Remove the general "Thinking..." placeholder
+                aiResponsePlaceholder.parentElement.remove(); // Remove the general "Thinking..." placeholder
             } else {
-                // Use the placeholder to show the final response
-                aiResponsePlaceholder.innerHTML = data.response; // Update content
-                aiResponsePlaceholder.parentElement.classList.remove('system-message'); // Update class on the wrapper
-                saveChatHistory(chatBox); // Save final state
+                // Update placeholder with final response and save to history
+                aiResponsePlaceholder.innerHTML = data.response;
+                aiResponsePlaceholder.parentElement.classList.remove('system-message');
+                updateAndSaveHistory({
+                    role: 'assistant',
+                    content: data.response
+                });
                 speak(data.response);
             }
         })
@@ -198,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Chat Error:', error);
             aiResponsePlaceholder.innerHTML = 'Sorry, an error occurred.';
             aiResponsePlaceholder.parentElement.classList.add('error-message');
-            saveChatHistory(chatBox);
+            // Do not save error messages to history
             speak('Sorry, an error occurred.');
         });
     }
@@ -212,13 +219,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         clearInterval(pollInterval);
                         placeholderElement.innerHTML = statusData.response;
                         placeholderElement.parentElement.classList.remove('system-message');
-                        saveChatHistory(document.getElementById('chatBox'));
+                        updateAndSaveHistory({ role: 'assistant', content: statusData.response });
                         speak(statusData.response);
                     } else if (statusData.status === 'failed') {
                         clearInterval(pollInterval);
                         placeholderElement.innerHTML = `AutoSCI Error: ${statusData.error}`;
                         placeholderElement.parentElement.classList.add('error-message');
-                        saveChatHistory(document.getElementById('chatBox'));
                         speak(`AutoSCI Error: ${statusData.error}`);
                     } else if (statusData.status === 'running' && statusData.progress) {
                         const { completed, total } = statusData.progress;
@@ -232,7 +238,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('AutoSCI Status Check Error:', error);
                     placeholderElement.innerHTML = 'Sorry, something went wrong while checking the AutoSCI discovery status.';
                     placeholderElement.parentElement.classList.add('error-message');
-                    saveChatHistory(document.getElementById('chatBox'));
                     speak(placeholderElement.textContent);
                 });
         }, 3000); // Poll every 3 seconds
@@ -258,26 +263,33 @@ document.addEventListener('DOMContentLoaded', () => {
     loadChatHistory();
 });
 
-function saveChatHistory(chatBox) {
-    const messages = [];
-    chatBox.childNodes.forEach(node => {
-        if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('chat-message')) {
-            messages.push({
-                role: node.dataset.role,
-                content: node.querySelector('.message-content').innerHTML,
-                className: node.className.replace('chat-message', '').trim()
-            });
+function saveChatHistory() {
+    localStorage.setItem('chatHistory', JSON.stringify(messagesHistory));
+}
+
+function updateAndSaveHistory(message) {
+    // This function replaces the content of the last message, which is the placeholder.
+    // This is a bit of a hack, but it's simpler than tracking placeholders.
+    // A more robust solution might involve message IDs.
+    if (messagesHistory.length > 0) {
+        const lastMessage = messagesHistory[messagesHistory.length - 1];
+        if (lastMessage.role === 'assistant') { // Ensure we only update assistant placeholders
+             messagesHistory[messagesHistory.length - 1] = message;
+        } else {
+             messagesHistory.push(message);
         }
-    });
-    localStorage.setItem('chatHistory', JSON.stringify(messages));
-    messagesHistory = messages;
+    } else {
+         messagesHistory.push(message);
+    }
+    saveChatHistory();
 }
 
 function loadChatHistory() {
     const chatBox = document.getElementById('chatBox');
-    const messages = JSON.parse(localStorage.getItem('chatHistory') || '[]');
-    messagesHistory = messages;
-    messages.forEach(msg => {
+    const loadedMessages = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+    messagesHistory = loadedMessages;
+    chatBox.innerHTML = ''; // Clear the chatbox before rendering
+    messagesHistory.forEach(msg => {
         addMessageToChat(msg.role, msg.content, msg.className, false); // Add without re-saving
     });
 }
@@ -286,14 +298,11 @@ function addMessageToChat(role, content, className = '', save = true) {
     const chatBox = document.getElementById('chatBox');
     const messageWrapper = document.createElement('div');
     messageWrapper.className = `chat-message ${role}-message ${className}`.trim();
-    messageWrapper.dataset.role = role;
 
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    
-    // If the content is from user input, escape it to prevent HTML injection
-    // Otherwise, for assistant messages or loaded history, we assume it's safe HTML
-    if (role === 'user' && save === true) {
+
+    if (role === 'user') {
          messageContent.textContent = content;
     } else {
          messageContent.innerHTML = content;
@@ -304,7 +313,10 @@ function addMessageToChat(role, content, className = '', save = true) {
     chatBox.scrollTop = chatBox.scrollHeight;
 
     if (save) {
-        saveChatHistory(chatBox);
+        // We only save final messages to history.
+        // The assistant's final response is saved via updateAndSaveHistory.
+        messagesHistory.push({ role, content });
+        saveChatHistory();
     }
 
     return messageContent; // Return for updates
