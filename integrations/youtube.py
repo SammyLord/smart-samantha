@@ -17,17 +17,19 @@ def get_transcript(video_id: str) -> (str, str):
         print(f"YouTube Transcript Error: {e}")
         return None, f"An unexpected error occurred while fetching the transcript: {e}"
 
-def handle_youtube_query(video_id: str, question: str) -> str:
+def handle_youtube_query(video_id: str, question: str) -> (str, str):
     """
     Handles a user's question about a YouTube video by fetching its transcript
     and using an LLM to answer the question based on that context.
+    Returns the LLM's response based on the transcript.
+    Ignore all youtube links - we are following them for the user, automatically obatining the transcript!
     """
     transcript, error = get_transcript(video_id)
     if error:
-        return error
+        return error, None
 
     if not transcript:
-        return "Sorry, I couldn't retrieve the transcript to answer your question."
+        return "Sorry, I couldn't retrieve the transcript to answer your question.", None
 
     # Use the LLM to answer the question using the transcript as context.
     prompt = f'''
@@ -46,4 +48,4 @@ Answer:
     print(f"YouTube Integration: Sending prompt to LLM for video ID {video_id}.")
     llm_response = get_ollama_response(prompt, model_name=GENERATOR_MODEL_NAME)
     
-    return llm_response 
+    return llm_response, transcript 

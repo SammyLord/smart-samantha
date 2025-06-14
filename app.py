@@ -114,6 +114,7 @@ def chat():
     num_theories = min(int(data.get('num_theories', 1)), MAX_PARALLEL_THEORIES)
     
     ai_response = ""
+    ai_response_for_history = None
 
     if intent == "autosci_mode":
         # Generate a unique task ID for this AutoSCI request
@@ -157,7 +158,11 @@ def chat():
             if not question:
                 question = "Summarize this video." # Default action
             
-            ai_response = youtube.handle_youtube_query(video_id=video_id, question=question)
+            answer, transcript = youtube.handle_youtube_query(video_id=video_id, question=question)
+            ai_response = answer
+            if transcript:
+                # For the history, we save the answer PLUS the context that produced it.
+                ai_response_for_history = f"{answer}\n\n[CONTEXT - YouTube Transcript]:\n{transcript}"
         else:
             ai_response = "I understood you want to ask about a YouTube video, but I couldn't find a valid YouTube link in your message."
     elif intent == "caldav_query":
@@ -191,7 +196,7 @@ def chat():
 
     # Add user message and AI response to history
     session_hist.append({"role": "user", "content": user_message})
-    session_hist.append({"role": "assistant", "content": ai_response})
+    session_hist.append({"role": "assistant", "content": ai_response_for_history or ai_response})
     
     # Trim history to keep it from growing indefinitely
     if len(session_hist) > MAX_HISTORY_LENGTH * 2:

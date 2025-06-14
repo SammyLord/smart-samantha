@@ -15,13 +15,30 @@ THINKER_MODEL_NAME = os.getenv("THINK_MODEL")
 
 def get_ollama_response(prompt: str, model_name: str = GENERATOR_MODEL_NAME, history: list = None) -> str:
     """
-    Gets a response from the Ollama API, allowing model selection and conversation history.
+    Gets a response from the Ollama API, formatting the prompt to include conversation history
+    as specified by the user.
     """
+    
+    history_log = ""
     if history:
-        messages = history + [{"role": "user", "content": prompt}]
-    else:
-        messages = [{"role": "user", "content": prompt}]
+        # Format the history into a clear, readable string.
+        history_items = []
+        for msg in history:
+            # Use a clear role name like 'User' or 'AI' for the log.
+            role = "AI" if msg['role'] == 'assistant' else "User"
+            history_items.append(f"{role}: {msg['content']}")
+        history_log = "\n\n".join(history_items)
 
+    # Construct the prompt exactly as requested.
+    full_prompt = f"""User says:
+{prompt}
+
+previous queries and answers for context:
+
+{history_log}""".strip()
+
+    messages = [{"role": "user", "content": full_prompt}]
+    
     response = None # Initialize response to None to handle cases where the request itself fails early
     try:
         response = requests.post(
