@@ -5,4 +5,5 @@ python-dotenv
 requests
 caldav
 youtube-transcript-api
-python-dateutil 
+python-dateutil
+mcp[cli] 

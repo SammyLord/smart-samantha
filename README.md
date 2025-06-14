@@ -6,6 +6,10 @@ A conversational AI agent with a web interface, powered by local LLMs via Ollama
 
 Smart Samantha is a Python-based AI assistant built with Flask for the web interface and utilizes a multi-LLM, multi-step approach for its core intelligence. The agent aims to understand natural language requests, process them through a sophisticated reasoning pipeline, and interact with external services or provide deeply considered conversational responses.
 
+### Disclaimer
+
+**This software is intended for individual use and is not designed to be shared or hosted for multiple users. Each user should set up their own instance of Smart Samantha on their own machine.**
+
 Current capabilities include:
 - Text-based and voice-based (via browser STT/TTS) chat.
 - Natural Language Understanding (NLU) to determine user intent and extract entities.

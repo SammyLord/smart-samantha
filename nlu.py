@@ -1,6 +1,6 @@
 import json
 import re
-from llm import get_ollama_response
+from llm import get_ollama_response, THINKER_MODEL_NAME
 
 # A dictionary defining the intents and the entities they might have.
 INTENT_DEFINITIONS = {
@@ -122,7 +122,8 @@ INTENT_DEFINITIONS = {
             "Hello, how are you?",
             "What's your name?"
         ]
-    }
+    },
+    "autosci_discover": []
 }
 
 def generate_nlu_prompt(user_message: str) -> str:
@@ -205,4 +206,85 @@ def process_user_intent(user_message: str) -> dict:
         return {"intent": "casual_chat", "entities": {}}
     except Exception as e:
         print(f"NLU Error: An unexpected error occurred during NLU processing. Error: {e}")
-        return {"intent": "casual_chat", "entities": {}} 
+        return {"intent": "casual_chat", "entities": {}}
+
+def get_intent_and_entities(user_input, mcp_tools=None):
+    """
+    Identifies the user's intent and extracts relevant entities from the input.
+    This version is simplified to rely more on the LLM's direct JSON output.
+    """
+    if mcp_tools is None:
+        mcp_tools = []
+        
+    # Build the tool definitions for the prompt
+    tool_definitions = ""
+    for intent, entities in INTENT_DEFINITIONS.items():
+        entity_list = ", ".join(entities)
+        tool_definitions += f'- "{intent}": {entity_list if entity_list else "No entities"}\n'
+
+    if mcp_tools:
+        tool_definitions += "\n# Additional MCP tools:\n"
+        for tool in mcp_tools:
+            # For now, we assume MCP tools might need arguments but don't have a defined schema here.
+            # A more advanced version could parse the tool's inputSchema.
+            tool_definitions += f'- "{tool["name"]}": {tool["description"]}\n'
+
+    prompt = f"""
+From the user input "{user_input}", identify the primary intent and extract any relevant entities.
+
+Here are the available tools and the entities they expect:
+{tool_definitions}
+
+Respond with a single, valid JSON object with two keys: "intent" and "entities".
+- The "intent" must be a string that exactly matches one of the available tool names. If it's an MCP tool, prefix the name with "mcp_".
+- The "entities" must be a JSON object containing the extracted values.
+
+If the user input is just casual conversation (e.g., "hello", "how are you?"), respond with:
+{{"intent": "casual_chat", "entities": {{}}}}
+
+User: "what's the weather like in New York?"
+{{"intent": "get_weather", "entities": {{"location": "New York"}}}}
+
+User: "list my files in the documents folder on nextcloud"
+{{"intent": "nextcloud_list_files", "entities": {{"path": "/documents"}}}}
+
+User: "run the database migration"
+{{"intent": "mcp_migrate_db", "entities": {{}}}}
+
+User: "{user_input}"
+Result:
+"""
+
+    llm_response = get_ollama_response(THINKER_MODEL_NAME, prompt)
+
+    # Basic cleanup of the response
+    llm_response = llm_response.strip()
+
+    # Find the JSON object in the response
+    json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
+    
+    if not json_match:
+        print(f"NLU Error: No JSON object found in LLM response: {llm_response}")
+        return "casual_chat", {}
+
+    try:
+        parsed_json = json.loads(json_match.group(0))
+        intent = parsed_json.get("intent", "casual_chat")
+        entities = parsed_json.get("entities", {})
+        
+        # If the intent is an MCP tool, we don't need to validate it against INTENT_DEFINITIONS
+        is_mcp_intent = any(tool['name'] == intent.replace('mcp_', '', 1) for tool in mcp_tools)
+
+        if not is_mcp_intent and intent not in INTENT_DEFINITIONS:
+             print(f"NLU Warning: LLM returned an unknown intent '{intent}'. Defaulting to casual_chat.")
+             return "casual_chat", {}
+
+        print(f"NLU Result: Intent='{intent}', Entities={entities}")
+        return intent, entities
+
+    except json.JSONDecodeError as e:
+        print(f"NLU Error: Failed to decode JSON from LLM response. Error: {e}. Response: {json_match.group(0)}")
+        return "casual_chat", {}
+    except Exception as e:
+        print(f"NLU Error: An unexpected error occurred during NLU processing. Error: {e}")
+        return "casual_chat", {} 
