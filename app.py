@@ -1,9 +1,10 @@
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 from llm import get_ollama_response, GENERATOR_MODEL_NAME
 from nlu import process_user_intent, get_intent_and_entities
 from integrations import weather, web_search, bible, nextcloud, caldav_calendar, youtube # Import integration modules
 from integrations.autosci import trigger_autosci_discovery # Import the new autosci function
-from problem_solver import solve_with_multi_step_refinement, run_end_to_end_test # Updated import
+from problem_solver import solve_with_multi_step_refinement # Updated import
 from verifylib.python.verify import verify_license
 from mcp_client import MCPClient
 import asyncio
