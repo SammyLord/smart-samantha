@@ -122,9 +122,85 @@ INTENT_DEFINITIONS = {
             "Hello, how are you?",
             "What's your name?"
         ]
-    },
-    "autosci_discover": []
+    }
 }
+
+def get_intent_and_entities(user_message: str, mcp_tools=None) -> tuple[str, dict]:
+    """
+    Processes the user's message to determine intent and extract entities using an LLM,
+    including dynamically provided MCP tools.
+    """
+    if mcp_tools is None:
+        mcp_tools = []
+
+    # Dynamically create the intent list and formatting for the prompt
+    intent_list = "\n".join([f"- {name}: {details['description']}" for name, details in INTENT_DEFINITIONS.items()])
+    
+    if mcp_tools:
+        mcp_tool_list = "\n".join([f"- {tool['name']}: {tool['description']}" for tool in mcp_tools])
+        intent_list += "\n" + mcp_tool_list
+
+    json_format_description = """
+Respond with a single JSON object in the following format:
+{
+  "intent": "INTENT_NAME",
+  "entities": {
+    "entity_name_1": "value_1",
+    "entity_name_2": "value_2"
+  },
+  "confidence": 0.9,
+  "reasoning": "A brief explanation of why you chose this intent and entities."
+}
+
+- "intent" must be ONE of the intent names listed above.
+- "entities" must be an object containing the extracted entities for that intent. If no entities are found for a given intent, provide an empty object {}.
+- For `query_youtube_video`, extract the `video_id` from the URL. The user's question is the part of the message that is not the URL.
+- For `nextcloud_list_files`, if no path is mentioned, the `path` entity should default to "/".
+"""
+
+    prompt = f"""
+You are a highly intelligent Natural Language Understanding (NLU) engine. Your task is to analyze the user's message and determine their intent and any associated entities.
+
+Here are the possible intents:
+{intent_list}
+
+{json_format_description}
+
+---
+User message: "{user_message}"
+---
+
+Now, provide the JSON output based on the user's message.
+"""
+    
+    # LLM call
+    raw_response = get_ollama_response(prompt, model_name=THINKER_MODEL_NAME)
+    
+    # Regex to find JSON object in the response, in case the LLM adds extra text.
+    json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+    
+    if not json_match:
+        print(f"NLU Error: LLM did not return a valid JSON object. Response: {raw_response}")
+        return "casual_chat", {}
+
+    try:
+        parsed_json = json.loads(json_match.group(0))
+        
+        # Validate the structure
+        intent = parsed_json.get("intent", "casual_chat")
+        entities = parsed_json.get("entities", {})
+        
+        # Check if the returned intent is valid (either in predefined or MCP tools)
+        mcp_tool_names = [tool['name'] for tool in mcp_tools]
+        if intent not in INTENT_DEFINITIONS and intent not in mcp_tool_names:
+            print(f"NLU Warning: LLM returned an unknown intent '{intent}'. Defaulting to casual_chat.")
+            return "casual_chat", {}
+            
+        return intent, entities
+
+    except json.JSONDecodeError:
+        print(f"NLU Error: Failed to parse JSON from LLM response: {raw_response}")
+        return "casual_chat", {}
 
 def generate_nlu_prompt(user_message: str) -> str:
     """Generates the full prompt for the LLM to perform NLU."""
@@ -164,127 +240,4 @@ User message: "{user_message}"
 
 Now, provide the JSON output based on the user's message.
 """
-    return prompt
-
-def process_user_intent(user_message: str) -> dict:
-    """
-    Processes the user's message to determine intent and extract entities using an LLM.
-    The LLM is prompted to return a JSON object with the intent and entities.
-    """
-    prompt = generate_nlu_prompt(user_message)
-    
-    # LLM call
-    raw_response = get_ollama_response(prompt)
-    
-    # Regex to find JSON object in the response, in case the LLM adds extra text.
-    json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
-    
-    if not json_match:
-        print(f"NLU Error: LLM did not return a valid JSON object. Response: {raw_response}")
-        return {"intent": "casual_chat", "entities": {}}
-
-    try:
-        parsed_json = json.loads(json_match.group(0))
-        
-        # Validate the structure
-        intent = parsed_json.get("intent")
-        entities = parsed_json.get("entities", {})
-        
-        if intent not in INTENT_DEFINITIONS:
-            print(f"NLU Warning: LLM returned an unknown intent '{intent}'. Defaulting to casual_chat.")
-            return {"intent": "casual_chat", "entities": {}}
-            
-        # --- Post-processing for specific, structured entities ---
-        # We will handle specific extraction for youtube directly in the app route
-        # to ensure it's robust, so no special handling is needed here.
-
-        print(f"NLU Result: Intent='{intent}', Entities={entities}")
-        return {"intent": intent, "entities": entities}
-
-    except json.JSONDecodeError as e:
-        print(f"NLU Error: Failed to decode JSON from LLM response. Error: {e}. Response: {json_match.group(0)}")
-        return {"intent": "casual_chat", "entities": {}}
-    except Exception as e:
-        print(f"NLU Error: An unexpected error occurred during NLU processing. Error: {e}")
-        return {"intent": "casual_chat", "entities": {}}
-
-def get_intent_and_entities(user_input, mcp_tools=None):
-    """
-    Identifies the user's intent and extracts relevant entities from the input.
-    This version is simplified to rely more on the LLM's direct JSON output.
-    """
-    if mcp_tools is None:
-        mcp_tools = []
-        
-    # Build the tool definitions for the prompt
-    tool_definitions = ""
-    for intent, entities in INTENT_DEFINITIONS.items():
-        entity_list = ", ".join(entities)
-        tool_definitions += f'- "{intent}": {entity_list if entity_list else "No entities"}\n'
-
-    if mcp_tools:
-        tool_definitions += "\n# Additional MCP tools:\n"
-        for tool in mcp_tools:
-            # For now, we assume MCP tools might need arguments but don't have a defined schema here.
-            # A more advanced version could parse the tool's inputSchema.
-            tool_definitions += f'- "{tool["name"]}": {tool["description"]}\n'
-
-    prompt = f"""
-From the user input "{user_input}", identify the primary intent and extract any relevant entities.
-
-Here are the available tools and the entities they expect:
-{tool_definitions}
-
-Respond with a single, valid JSON object with two keys: "intent" and "entities".
-- The "intent" must be a string that exactly matches one of the available tool names. If it's an MCP tool, prefix the name with "mcp_".
-- The "entities" must be a JSON object containing the extracted values.
-
-If the user input is just casual conversation (e.g., "hello", "how are you?"), respond with:
-{{"intent": "casual_chat", "entities": {{}}}}
-
-User: "what's the weather like in New York?"
-{{"intent": "get_weather", "entities": {{"location": "New York"}}}}
-
-User: "list my files in the documents folder on nextcloud"
-{{"intent": "nextcloud_list_files", "entities": {{"path": "/documents"}}}}
-
-User: "run the database migration"
-{{"intent": "mcp_migrate_db", "entities": {{}}}}
-
-User: "{user_input}"
-Result:
-"""
-
-    llm_response = get_ollama_response(THINKER_MODEL_NAME, prompt)
-
-    # Basic cleanup of the response
-    llm_response = llm_response.strip()
-
-    # Find the JSON object in the response
-    json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
-    
-    if not json_match:
-        print(f"NLU Error: No JSON object found in LLM response: {llm_response}")
-        return "casual_chat", {}
-
-    try:
-        parsed_json = json.loads(json_match.group(0))
-        intent = parsed_json.get("intent", "casual_chat")
-        entities = parsed_json.get("entities", {})
-        
-        # If the intent is an MCP tool, we don't need to validate it against INTENT_DEFINITIONS
-        is_mcp_intent = any(tool['name'] == intent.replace('mcp_', '', 1) for tool in mcp_tools)
-
-        if not is_mcp_intent and intent not in INTENT_DEFINITIONS:
-             print(f"NLU Warning: LLM returned an unknown intent '{intent}'. Defaulting to casual_chat.")
-             return "casual_chat", {}
-
-        print(f"NLU Result: Intent='{intent}', Entities={entities}")
-        return intent, entities
-
-    except json.JSONDecodeError as e:
-        print(f"NLU Error: Failed to decode JSON from LLM response. Error: {e}. Response: {json_match.group(0)}")
-        return "casual_chat", {}
-    except Exception as e:
-        print(f"NLU Error: An unexpected error occurred during NLU processing. Error: {e}")
-        return "casual_chat", {} 
+    return prompt 
