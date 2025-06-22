@@ -54,7 +54,7 @@ Current capabilities include:
 
 1.  **Prerequisites**:
     *   Python 3.8+
-    *   An Ollama-compatible API endpoint accessible and running the desired models (default: `sparksammy/tinysam-l3.2-v2` and `sparksammy/samantha-thinker-v2` at `https://ollama-api.nodemixaholic.com/v1`). You can change the `OLLAMA_API_URL` and model name constants in `llm.py`.
+    *   An Ollama-compatible API endpoint accessible and running the desired models (default: `sparksammy/tinysam-l3.2-v2` and `sparksammy/samantha-thinker-v2` at `redacted`). You can change the `OLLAMA_API_URL` and model name constants in `llm.py`.
 
 2.  **Clone the Repository (if applicable)**:
     ```bash
